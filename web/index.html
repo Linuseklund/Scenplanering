@@ -44,6 +44,7 @@ main{display:flex;flex-direction:column;gap:10px;padding:14px 18px;min-width:0;m
 .lbl{position:absolute;transform:translate(-50%,-100%);font:700 11.5px var(--mono);color:#fff;padding:1px 6px;border-radius:999px;pointer-events:none;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 .lbl.sel{outline:2px solid #fff}.lbl.hid{opacity:.45}
 .lbl.pc{background:rgba(20,30,36,.7);font:600 11px var(--ui)}
+.vtag.end{background:#B4532A}
 .vtag{position:absolute;left:10px;top:8px;font:600 12px var(--ui);color:#fff;background:rgba(0,0,0,.5);padding:2px 8px;border-radius:6px;pointer-events:none}
 .warn{position:absolute;left:10px;bottom:8px;right:10px;font:600 12.5px var(--ui);color:#fff;background:color-mix(in srgb,var(--warn) 88%,black);padding:5px 10px;border-radius:6px;pointer-events:none}
 .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#fff;text-align:center;padding:20px;background:var(--vp)}
@@ -151,6 +152,21 @@ dialog::backdrop{background:rgba(5,12,18,.55)}
       <div class="fld"><label for="rMM">Objektiv</label><input type="range" id="rMM" min="14" max="135" step="1"><output id="oMM"></output></div>
       <div class="fld"><label for="rCH">Kamerahöjd</label><input type="range" id="rCH" min="-9" max="40" step="0.1"><output id="oCH"></output></div>
       <div class="row"><button class="btn" id="bLevel">Rak horisont</button><button class="btn" id="bPrevCam">Förra skottets kamera</button></div>
+      <h3 style="margin-top:6px">Kamerarörelse</h3>
+      <div class="fld2"><label for="mvType">Rörelse</label><select id="mvType" class="btn">
+        <option value="none">Stilla kamera</option>
+        <optgroup label="Åka"><option value="in">Åka in mot motivet</option><option value="out">Åka ut från motivet</option><option value="left">Åka åt vänster</option><option value="right">Åka åt höger</option><option value="up">Kran upp</option><option value="down">Kran ned</option></optgroup>
+        <optgroup label="Vrida"><option value="panl">Panorera vänster</option><option value="panr">Panorera höger</option><option value="tiltu">Tilta upp</option><option value="tiltd">Tilta ned</option></optgroup>
+        <optgroup label="Runt motivet"><option value="orbl">Kretsa åt vänster</option><option value="orbr">Kretsa åt höger</option></optgroup>
+        <optgroup label="Objektiv"><option value="zin">Zooma in</option><option value="zout">Zooma ut</option></optgroup>
+        <option value="free">Egen – ställ in slutet själv</option>
+      </select></div>
+      <div id="mvOpts" hidden style="display:flex;flex-direction:column;gap:8px">
+        <div class="fld" id="mvAmtF"><label for="rAmt">Hur långt</label><input type="range" id="rAmt" min="0.1" max="1" step="0.05"><output id="oAmt"></output></div>
+        <div class="fld2"><label for="mvSpd">Tempo</label><select id="mvSpd" class="btn"><option value="slow">Lugnt</option><option value="mid">Normalt</option><option value="fast">Snabbt</option></select></div>
+        <div class="row"><div class="seg" role="group" aria-label="Visa kameran i"><button id="eStart" aria-pressed="true">Start</button><button id="eEnd" aria-pressed="false">Slut</button></div><button class="btn" id="bPlay">▶ Spela upp</button><button class="btn" id="bEndPng">Spara slutbild</button></div>
+        <p class="hint" id="mvHint"></p>
+      </div>
     </section>
     <section>
       <h3>Till Higgsfield</h3>
@@ -708,8 +724,92 @@ function syncActors(){
     actorsG.add(g);
   });
 }
-function applyCam(){ applying = true; const c = cur.cam; shotCam.position.set(...c.p); ctlShot.target.set(...c.t); shotCam.fov = vfov(c.mm); shotCam.updateProjectionMatrix(); ctlShot.update(); applying = false; }
-function readCam(){ cur.cam.p = shotCam.position.toArray().map(v=>+v.toFixed(3)); cur.cam.t = ctlShot.target.toArray().map(v=>+v.toFixed(3)); }
+// ---------- kamerarörelse ----------
+// cur.mv = {type, amt, spd, end}. Färdiga rörelser räknas fram från startkameran; 'free' har en egen sparad slutkamera.
+let camEdit = 'start', forcedCam = null, playing = null;
+const MV = {
+  in:{sv:'Åka in', u:'m'}, out:{sv:'Åka ut', u:'m'}, left:{sv:'Åka vänster', u:'m'}, right:{sv:'Åka höger', u:'m'}, up:{sv:'Kran upp', u:'m'}, down:{sv:'Kran ned', u:'m'},
+  panl:{sv:'Panorera vänster', u:'°'}, panr:{sv:'Panorera höger', u:'°'}, tiltu:{sv:'Tilta upp', u:'°'}, tiltd:{sv:'Tilta ned', u:'°'},
+  orbl:{sv:'Kretsa vänster', u:'°'}, orbr:{sv:'Kretsa höger', u:'°'}, zin:{sv:'Zooma in', u:'mm'}, zout:{sv:'Zooma ut', u:'mm'}, free:{sv:'Egen'}
+};
+const SPD = {slow:{s:6, en:'slow'}, mid:{s:4, en:'steady'}, fast:{s:2.5, en:'fast'}};
+const V3 = a => new T.Vector3(...a), arr = v => v.toArray().map(x => +x.toFixed(3));
+const hasMove = st => !!st?.mv && st.mv.type && st.mv.type !== 'none';
+// Motivet: den synliga figur som står närmast bildens mitt. Rörelserna mäts mot den, inte mot siktpunkten.
+function subject(c){
+  const p = V3(c.p), fn = V3(c.t).sub(p).normalize(); let best = null, ba = 35*Math.PI/180;
+  for (const a of cur?.actors || []){ if (a.hid) continue;
+    const v = new T.Vector3(a.x, a.y + centerY(castOf(a.c)), a.z).sub(p), depth = v.dot(fn); if (depth < 0.3) continue;
+    const ang = v.angleTo(fn); if (ang < ba){ ba = ang; best = {a, depth}; } }
+  const depth = best ? best.depth : Math.min(V3(c.t).distanceTo(p), 10);
+  return {a:best?.a || null, depth, pv:p.clone().addScaledVector(fn, depth)};
+}
+// Hur långt rörelsen går, i meter, grader eller mm.
+function mvSize(c, mv){
+  const D = subject(c).depth, a = mv.amt ?? 0.5;
+  switch (mv.type){
+    case 'in': return D*a*0.75; case 'out': return D*a*1.5;
+    case 'left': case 'right': case 'up': case 'down': return D*a*0.8;
+    case 'panl': case 'panr': return a*80; case 'tiltu': case 'tiltd': return a*40;
+    case 'orbl': case 'orbr': return a*120;
+    case 'zin': return Math.min(135, c.mm*(1+a*2)); case 'zout': return Math.max(14, c.mm/(1+a*1.5));
+  }
+  return 0;
+}
+const fmtSize = (c, mv) => { const k = mvSize(c, mv), u = MV[mv.type].u; return u === 'm' ? (k < 2 ? k.toFixed(1) : Math.round(k)) + ' m' : Math.round(k) + (u === 'mm' ? ' mm' : '°'); };
+function camEnd(st){
+  if (!hasMove(st)) return null;
+  const mv = st.mv, c = st.cam;
+  if (mv.type === 'free') return mv.end || clone(c);
+  const p = V3(c.p), t = V3(c.t), f = t.clone().sub(p), dist = f.length(), up = new T.Vector3(0,1,0);
+  const fn = f.clone().normalize(), right = new T.Vector3().crossVectors(fn, up); if (right.lengthSq() < 1e-6) right.set(1,0,0); right.normalize();
+  const k = mvSize(c, mv), rad = k*Math.PI/180;
+  let mm = c.mm;
+  switch (mv.type){
+    case 'in': p.addScaledVector(fn, k); break;
+    case 'out': p.addScaledVector(fn, -k); break;
+    case 'left': case 'right': { const d = right.clone().multiplyScalar(mv.type==='left' ? -k : k); p.add(d); t.add(d); break; }
+    case 'up': p.y += k; break;
+    case 'down': p.y -= k; break;
+    case 'panl': case 'panr': { const d = f.clone().applyAxisAngle(up, mv.type==='panl' ? rad : -rad); t.copy(p).add(d); break; }
+    case 'tiltu': case 'tiltd': { const d = f.clone().applyAxisAngle(right, mv.type==='tiltu' ? rad : -rad); t.copy(p).add(d); break; }
+    case 'orbl': case 'orbr': { const pv = subject(c).pv, r_ = mv.type==='orbl' ? -rad : rad; p.sub(pv).applyAxisAngle(up, r_).add(pv); t.sub(pv).applyAxisAngle(up, r_).add(pv); break; }
+    case 'zin': case 'zout': mm = Math.round(k*10)/10; break;
+  }
+  return {p:arr(p), t:arr(t), mm};
+}
+// Kameran en bit in i rörelsen (u = 0…1). Färdiga rörelser följer sin egen bana; en egen rörelse går rakt med mjuk vridning,
+// eller i en båge om man kretsat runt siktpunkten.
+function camAtShot(st, u){ return st.mv.type === 'free' ? camAt(st.cam, st.mv.end, orbitPivot(st), u) : camEnd({cam:st.cam, mv:{...st.mv, amt:(st.mv.amt ?? 0.5)*u}}); }
+function camAt(a, b, pivot, u){
+  const pa = V3(a.p), ta = V3(a.t), pb = V3(b.p), tb = V3(b.t), mm = a.mm + (b.mm - a.mm)*u;
+  let p = pa.clone().lerp(pb, u);
+  if (pivot){
+    const sa = new T.Spherical().setFromVector3(pa.clone().sub(pivot)), sb = new T.Spherical().setFromVector3(pb.clone().sub(pivot));
+    let dth = sb.theta - sa.theta; if (dth > Math.PI) dth -= 2*Math.PI; if (dth < -Math.PI) dth += 2*Math.PI;
+    p = pivot.clone().add(new T.Vector3().setFromSpherical(new T.Spherical(sa.radius + (sb.radius-sa.radius)*u, sa.phi + (sb.phi-sa.phi)*u, sa.theta + dth*u)));
+  }
+  const da = ta.clone().sub(pa), db = tb.clone().sub(pb), la = da.length(), lb = db.length();
+  const qa = new T.Quaternion().setFromUnitVectors(new T.Vector3(0,0,-1), da.normalize()), qb = new T.Quaternion().setFromUnitVectors(new T.Vector3(0,0,-1), db.normalize());
+  const d = new T.Vector3(0,0,-1).applyQuaternion(qa.slerp(qb, u)).multiplyScalar(la + (lb-la)*u);
+  return {p:arr(p), t:arr(p.add(d)), mm};
+}
+// En egen rörelse räknas som kretsning om motivet står kvar mitt i bild medan kameran flyttar sig i sidled och vrider sig.
+function orbitPivot(st){
+  if (st.mv.type !== 'free') return null;
+  const a = st.cam, b = st.mv.end, pv = subject(a).pv, pa = V3(a.p), pb = V3(b.p), fb = V3(b.t).sub(pb).normalize();
+  const off = pv.clone().sub(pb), miss = off.clone().sub(fb.clone().multiplyScalar(off.dot(fb))).length();
+  const fa = V3(a.t).sub(pa); const yaw = Math.abs(Math.atan2(fa.x*fb.z - fa.z*fb.x, fa.x*fb.x + fa.z*fb.z));
+  return miss < 0.2*off.length() && pa.distanceTo(pb) > 0.5 && yaw > 10*Math.PI/180 ? pv : null;
+}
+const isOrbit = st => !!orbitPivot(st);
+// Kameran som visas och redigeras just nu: start, eller slutet av en egen rörelse.
+const cc = () => forcedCam || (camEdit === 'end' && hasMove(cur) ? (cur.mv.type === 'free' ? cur.mv.end : camEnd(cur)) : cur.cam);
+function setShotCam(c){ applying = true; shotCam.position.set(...c.p); ctlShot.target.set(...c.t); shotCam.fov = vfov(c.mm); shotCam.updateProjectionMatrix(); ctlShot.update(); applying = false; }
+// Kör fn med kameran c (start eller slut) och ställ sedan tillbaka.
+function withCam(c, fn){ const keep = forcedCam; forcedCam = c; setShotCam(c); try { return fn(); } finally { forcedCam = keep; setShotCam(cc()); } }
+function applyCam(){ applying = true; const c = cc(); shotCam.position.set(...c.p); ctlShot.target.set(...c.t); shotCam.fov = vfov(c.mm); shotCam.updateProjectionMatrix(); ctlShot.update(); applying = false; }
+function readCam(){ const c = cc(); c.p = shotCam.position.toArray().map(v=>+v.toFixed(3)); c.t = ctlShot.target.toArray().map(v=>+v.toFixed(3)); }
 
 // ---------- UI ----------
 function renderProjSel(){
@@ -768,8 +868,9 @@ function renderSide(){
   $('selBox').hidden = !a;
   const ad = a && castOf(a.c); $('selImg').hidden = !ad?.img; if (ad?.img){ $('selImg').src = imgSrc(ad.img); $('selImg').onclick = () => showImage(imgSrc(ad.img), ad.sv); }
   if (a){ $('selName').textContent = castOf(a.c).sv + ' (' + a.c + ')'; $('rRot').value = a.r; $('oRot').textContent = a.r + '°'; $('rY').value = a.y; $('oY').textContent = a.y.toFixed(1) + ' m'; $('bHide').textContent = a.hid ? 'Visa i skottet' : 'Dölj i skottet'; }
-  $('rMM').value = cur.cam.mm; $('oMM').textContent = cur.cam.mm + ' mm';
-  $('rCH').value = cur.cam.p[1]; $('oCH').textContent = cur.cam.p[1].toFixed(1) + ' m';
+  $('rMM').value = cc().mm; $('oMM').textContent = cc().mm + ' mm';
+  $('rCH').value = cc().p[1]; $('oCH').textContent = cc().p[1].toFixed(1) + ' m';
+  renderMove();
   if (document.activeElement !== $('note')) $('note').value = cur.note || '';
   $('bDone').textContent = cur.done ? 'Klar ✓ → nästa' : 'Klar → nästa';
   $('bPrev').disabled = idx===0;
@@ -802,7 +903,7 @@ function render(){
   $('scSel').value = cur.sc;
   buildWorld(); syncPieces(); syncActors(); applyCam(); renderSide(); renderList();
 }
-function go(i){ if (!P || i<0 || i>=SH().length) return; idx = i; sel = null; psel = null; cur = initShot(i); try{ localStorage.setItem(LS+'-idx-'+pid, String(i)); }catch{} render(); }
+function go(i){ if (!P || i<0 || i>=SH().length) return; stopPlay(); camEdit = 'start'; idx = i; sel = null; psel = null; cur = initShot(i); try{ localStorage.setItem(LS+'-idx-'+pid, String(i)); }catch{} render(); }
 function openProject(id){
   pid = id; P = id ? projects[id] || null : null; builtBase = null;
   if (P){ P.cast ||= {}; P.sets ||= {}; P.shots ||= []; renderSetSelects(); let i = 0; try { i = +localStorage.getItem(LS+'-idx-'+pid) || 0; } catch {} idx = Math.min(Math.max(0,i), Math.max(0, SH().length-1)); cur = SH().length ? initShot(idx) : null; }
@@ -816,6 +917,101 @@ function addPiece(t){
   const q = p.clone().add(dir.multiplyScalar(Math.max(4, baseOf(cur.sc).depth[1]*0.6)));
   const pc = {id:t+'-'+uid(), t, x:+q.x.toFixed(2), z:+q.z.toFixed(2), r:0, s:1, en:PIECES[t].en, c:PIECES[t].c};
   s.pieces.push(pc); psel = pc.id; syncPieces(); saveProject(); renderSide();
+}
+
+function vtagText(){
+  const e = camEdit === 'end' && hasMove(cur), t = $('vtag');
+  t.textContent = view==='cam' ? (playing ? 'Kameravy · spelar rörelsen' : e ? 'Kameravy · SLUTET av rörelsen' : 'Kameravy · skottets bild') : 'Planvy · hela miljön, skottets kamera i gult' + (hasMove(cur) ? ', rörelsen i orange' : '');
+  t.classList.toggle('end', view==='cam' && (e || !!playing));
+}
+function setEdit(e){ camEdit = e; $('eStart').setAttribute('aria-pressed', e==='start'); $('eEnd').setAttribute('aria-pressed', e==='end'); applyCam(); vtagText(); renderSide(); }
+// Ändrar man kameran medan slutet av en färdig rörelse visas blir det en egen rörelse med det slutet.
+function endToFree(){ if (camEdit !== 'end' || !hasMove(cur) || cur.mv.type === 'free') return; cur.mv = {type:'free', spd:cur.mv.spd, end:camEnd(cur)}; }
+function renderMove(){
+  if (!cur) return;
+  const mv = cur.mv || {type:'none'}, on = hasMove(cur);
+  $('mvType').value = mv.type || 'none'; $('mvOpts').hidden = !on;
+  if (on){
+    const m = MV[mv.type]; $('mvAmtF').hidden = mv.type === 'free';
+    if (mv.type !== 'free'){ $('rAmt').value = mv.amt ?? 0.5; $('oAmt').textContent = fmtSize(cur.cam, mv); }
+    $('mvSpd').value = mv.spd || 'slow';
+    $('mvHint').textContent = mv.type === 'free' ? 'Klicka Slut och flytta kameran dit rörelsen ska sluta (dra i bilden, objektiv och höjd). Start visar var den börjar.'
+      : 'Start är skottets kamera. Klicka Slut för att se var rörelsen slutar – flyttar du kameran där blir det en egen rörelse.';
+  }
+  $('bPlay').textContent = playing ? '■ Stoppa' : '▶ Spela upp';
+  updMovePath();
+}
+$('mvType').onchange = e => {
+  const v = e.target.value, old = cur.mv || {};
+  cur.mv = v === 'none' ? {type:'none'} : {type:v, amt:old.amt ?? 0.5, spd:old.spd || 'slow', ...(v === 'free' ? {end:camEnd(cur) || clone(cur.cam)} : {})};
+  if (v === 'free' && cur.mv.end && V3(cur.mv.end.p).distanceTo(V3(cur.cam.p)) < 1e-3) cur.mv.end = camEnd({cam:cur.cam, mv:{type:'in', amt:0.4}});
+  cur.done = false; stopPlay(); if (v === 'none') camEdit = 'start';
+  setEdit(v === 'free' ? 'end' : camEdit); saveShot();
+};
+$('rAmt').oninput = e => { cur.mv.amt = +e.target.value; applyCam(); saveShot(); renderSide(); };
+$('mvSpd').onchange = e => { cur.mv.spd = e.target.value; saveShot(); renderSide(); };
+$('eStart').onclick = () => setEdit('start'); $('eEnd').onclick = () => setEdit('end');
+function stopPlay(){ if (!playing) return; cancelAnimationFrame(playing.raf); playing = null; ctlShot.enabled = view==='cam'; applyCam(); vtagText(); renderMove(); }
+$('bPlay').onclick = () => {
+  if (playing){ stopPlay(); return; }
+  if (!hasMove(cur)) return;
+  const st = {cam:clone(cur.cam), mv:clone(cur.mv)}, dur = SPD[cur.mv.spd || 'slow'].s * 1000, t0 = performance.now();
+  ctlShot.enabled = false;
+  const step = now => {
+    const u = Math.min(1, (now - t0) / dur), e = u < 0.5 ? 2*u*u : 1 - Math.pow(-2*u + 2, 2)/2;
+    setShotCam(camAtShot(st, e));
+    if (u < 1) playing.raf = requestAnimationFrame(step); else setTimeout(stopPlay, 600);
+  };
+  playing = {raf:requestAnimationFrame(step)}; vtagText(); renderMove();
+};
+$('bEndPng').onclick = async () => { if (!hasMove(cur)) return; offerFile(await withCam(camEnd(cur), layoutBlob), `${slug(P.name)}_skott_${tagOf().id}_slutbild.png`, 'Slutbilden är sparad.'); };
+// Planvyn: rörelsens bana och en orange kamera där den slutar.
+const mvLine = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({color:0xD2683E})); mvLine.visible = false; scene.add(mvLine);
+const endBody = new T.Mesh(box(0.5,0.35,0.7), new T.MeshBasicMaterial({color:0xD2683E, transparent:true, opacity:0.8})); endBody.visible = false; scene.add(endBody);
+function updMovePath(){
+  const on = !!cur && view==='plan' && hasMove(cur); mvLine.visible = endBody.visible = on; if (!on) return;
+  const b = camEnd(cur), pts = [];
+  for (let i=0;i<=40;i++) pts.push(V3(camAtShot(cur, i/40).p));
+  mvLine.geometry.dispose(); mvLine.geometry = new T.BufferGeometry().setFromPoints(pts);
+  endBody.position.set(...b.p); endBody.lookAt(...b.t);
+}
+function focusName(c){ const a = subject(c).a; return a ? nm(a, castOf(a.c)) : 'the point of interest'; }
+// Rörelsen i ord för Seedance.
+function moveText(){
+  if (!hasMove(cur)) return 'Camera move: static, locked-off camera. No camera movement, no zoom, no shake.';
+  const mv = cur.mv, sp = SPD[mv.spd || 'slow'].en, k = mvSize(cur.cam, mv), m1 = x => x < 2 ? x.toFixed(1) : Math.round(x), f = focusName(cur.cam);
+  const T_ = {
+    in:`${sp} dolly in (push in) toward ${f}, the camera travels about ${m1(k)} m forward`,
+    out:`${sp} dolly out (pull back) away from ${f}, about ${m1(k)} m, revealing more of the surroundings`,
+    left:`${sp} lateral tracking move (truck) to the left, about ${m1(k)} m, the camera keeps looking in the same direction`,
+    right:`${sp} lateral tracking move (truck) to the right, about ${m1(k)} m, the camera keeps looking in the same direction`,
+    up:`${sp} crane up, rising about ${m1(k)} m while staying aimed at ${f}, ending in a higher angle`,
+    down:`${sp} crane down, lowering about ${m1(k)} m while staying aimed at ${f}, ending in a lower angle`,
+    panl:`${sp} pan to the left, about ${Math.round(k)}°, the camera stays in place`, panr:`${sp} pan to the right, about ${Math.round(k)}°, the camera stays in place`,
+    tiltu:`${sp} tilt up, about ${Math.round(k)}°, the camera stays in place`, tiltd:`${sp} tilt down, about ${Math.round(k)}°, the camera stays in place`,
+    orbl:`${sp} arc shot orbiting around ${f} to the left, about ${Math.round(k)}°, keeping ${f} in the center of frame`,
+    orbr:`${sp} arc shot orbiting around ${f} to the right, about ${Math.round(k)}°, keeping ${f} in the center of frame`,
+    zin:`${sp} optical zoom in from ${cur.cam.mm} mm to ${Math.round(k)} mm, the camera stays in place`,
+    zout:`${sp} optical zoom out from ${cur.cam.mm} mm to ${Math.round(k)} mm, the camera stays in place`,
+  };
+  let s = T_[mv.type];
+  if (mv.type === 'free'){
+    const a = cur.cam, b = camEnd(cur), pa = V3(a.p), pb = V3(b.p), fa = V3(a.t).sub(pa), fb = V3(b.t).sub(pb), up = new T.Vector3(0,1,0);
+    const fh = fa.clone().setY(0).normalize(), rt = new T.Vector3().crossVectors(fh, up).normalize(), d = pb.clone().sub(pa);
+    const fw = d.dot(fh), lat = d.dot(rt), vert = d.y, parts = [];
+    const yaw = Math.round(Math.atan2(fa.x*fb.z - fa.z*fb.x, fa.x*fb.x + fa.z*fb.z)*180/Math.PI), pitch = Math.round((Math.asin(fb.clone().normalize().y) - Math.asin(fa.clone().normalize().y))*180/Math.PI);
+    if (isOrbit(cur)) parts.push(`arc shot orbiting around ${f} to the ${lat < 0 ? 'left' : 'right'}, about ${Math.abs(yaw)}°`);
+    else {
+      if (Math.abs(fw) > 0.3) parts.push(fw > 0 ? `dolly in about ${m1(fw)} m toward ${f}` : `dolly out about ${m1(-fw)} m`);
+      if (Math.abs(lat) > 0.3) parts.push(`track ${lat < 0 ? 'left' : 'right'} about ${m1(Math.abs(lat))} m`);
+      if (Math.abs(yaw) > 4) parts.push(`pan ${yaw > 0 ? 'right' : 'left'} about ${Math.abs(yaw)}°`);
+    }
+    if (Math.abs(vert) > 0.3) parts.push(`${vert > 0 ? 'rise' : 'lower'} about ${m1(Math.abs(vert))} m`);
+    if (Math.abs(pitch) > 4) parts.push(`tilt ${pitch > 0 ? 'up' : 'down'} about ${Math.abs(pitch)}°`);
+    if (Math.abs(b.mm - a.mm) > 2) parts.push(`zoom ${b.mm > a.mm ? 'in' : 'out'} from ${Math.round(a.mm)} mm to ${Math.round(b.mm)} mm`);
+    s = parts.length ? `${sp} combined camera move: ${parts.join(', then ').replace(/, then ([^,]*)$/, ' and $1')}` : `${sp} subtle camera drift`;
+  }
+  return `Camera move: one continuous ${s}, with gentle ease-in and ease-out, perfectly smooth, no shake, no cut. No other camera movement.`;
 }
 
 // ---------- text till Higgsfield ----------
@@ -852,7 +1048,7 @@ function analyse(){
   const lms = b.lm.concat((setOf(cur.sc).pieces||[]).filter(p => p.en).map(p => ({en:p.en, p:[p.x, b.ground + 1.2*(p.s||1), p.z]})));
   const bg = [];
   for (const lm of lms){ const p = new T.Vector3(...lm.p), dd = p.clone().sub(cp).dot(fwd), n = p.clone().project(shotCam); if (dd > 0 && Math.abs(n.x) < 1.05 && Math.abs(n.y) < 1.2 && !bg.includes(lm.en)) bg.push(lm.en); }
-  const mm = cur.cam.mm, lens = mm <= 24 ? 'wide' : mm <= 40 ? 'normal' : mm <= 70 ? 'slightly long' : 'long telephoto';
+  const mm = cc().mm, lens = mm <= 24 ? 'wide' : mm <= 40 ? 'normal' : mm <= 70 ? 'slightly long' : 'long telephoto';
   checkAxis();
   return {angle, mm, lens, dist, inF, out, bg};
 }
@@ -861,12 +1057,18 @@ function refs(list){ const seen = [], m = {}; list.forEach(o => { const ref = o.
   return {m, seen, loc, setName:set?.sv || ''}; }
 const nm = (a, d) => `${d.en || d.sv} (${a.c})`;
 function videoText(){
-  const A_ = analyse(), r = refs(A_.inF), L = [];
+  const A_ = withCam(cur.cam, analyse), E_ = hasMove(cur) ? withCam(camEnd(cur), analyse) : null, r = refs(E_ ? A_.inF.concat(E_.inF) : A_.inF), L = [];
   if (r.seen.length) L.push('REFERENCES: @Image1 = the opening frame of this shot. ' + r.seen.map(f => `@Image${r.m[f]} = ${f}`).join(', ') + '.');
   L.push('CAMERA & BLOCKING (from the 3D layout; keep positions, screen direction and framing exactly):');
-  L.push(`Camera: ${A_.angle}, ${A_.mm} mm ${A_.lens} lens, about ${A_.dist < 2 ? A_.dist.toFixed(1) : Math.round(A_.dist)} m from the point of interest.`);
-  if (A_.inF.length){ L.push('In frame, left to right:'); A_.inF.forEach(o => L.push(`- ${nm(o.a,o.d)}${o.d.ref ? ' @Image'+r.m[o.d.ref] : ''}: ${o.line}`)); }
+  L.push(`Camera${E_ ? ' at the start' : ''}: ${A_.angle}, ${A_.mm} mm ${A_.lens} lens, about ${A_.dist < 2 ? A_.dist.toFixed(1) : Math.round(A_.dist)} m from the point of interest.`);
+  if (A_.inF.length){ L.push(E_ ? 'In frame at the start, left to right:' : 'In frame, left to right:'); A_.inF.forEach(o => L.push(`- ${nm(o.a,o.d)}${o.d.ref ? ' @Image'+r.m[o.d.ref] : ''}: ${o.line}`)); }
   else L.push('In frame: no characters, only the location.');
+  L.push(moveText());
+  if (E_){
+    L.push(`Camera at the end: ${E_.angle}, ${E_.mm} mm ${E_.lens} lens.`);
+    if (E_.inF.length){ L.push('In frame at the end, left to right:'); E_.inF.forEach(o => L.push(`- ${nm(o.a,o.d)}${o.d.ref ? ' @Image'+r.m[o.d.ref] : ''}: ${o.line}`)); }
+    else L.push('In frame at the end: no characters, only the location.');
+  }
   if (A_.out.length) L.push(`Not in frame: ${A_.out.map(a => nm(a, castOf(a.c))).join(', ')}.`);
   if (r.loc) L.push(`Location: exactly as on @Image${r.m[r.loc]} (${r.loc}).`);
   L.push(`Background: ${A_.bg.length ? A_.bg.join(', ') : 'open space and sky only'}.`);
@@ -874,7 +1076,7 @@ function videoText(){
   return L.join('\n');
 }
 function imageText(){
-  const A_ = analyse(), r = refs(A_.inF), t = tagOf();
+  const A_ = withCam(cur.cam, analyse), r = refs(A_.inF), t = tagOf();
   const L = [`Create the opening frame of shot ${t.id}${P.name ? ' of ' + P.name : ''}, 16:9.`,
     '@Image1 is a rough 3D blocking render with simple colored placeholder figures and code labels. Use it ONLY for the camera angle, lens, horizon height, composition, and exactly where each character and object stands, how big it is in frame and which way it faces. Do NOT copy its flat colors, simple shapes, grid, labels or plain sky.'];
   if (A_.inF.length){ L.push('Replace every placeholder, left to right:'); A_.inF.forEach(o => L.push(`- the placeholder labeled ${o.a.c} = ${o.d.en || o.d.sv}${o.d.ref ? ', exactly as on @Image'+r.m[o.d.ref]+' ('+o.d.ref+')' : ''}: ${o.line}`)); }
@@ -982,13 +1184,13 @@ cv.addEventListener('pointermove', e => {
 function endDrag(){ if (!drag) return; const piece = drag.piece; drag = null; ctlShot.enabled = view==='cam'; ctlPlan.enabled = view==='plan'; if (piece) saveProject(); else { cur.done = false; saveShot(); } renderSide(); }
 cv.addEventListener('pointerup', endDrag, true); cv.addEventListener('pointercancel', endDrag, true);
 let camT = null;
-ctlShot.addEventListener('change', () => { if (!cur || applying) return; clearTimeout(camT); camT = setTimeout(() => { readCam(); cur.done = false; saveShot(); renderSide(); }, 250); });
+ctlShot.addEventListener('change', () => { if (!cur || applying || playing) return; endToFree(); clearTimeout(camT); camT = setTimeout(() => { readCam(); cur.done = false; saveShot(); renderSide(); }, 250); });
 
 // ---------- kontroller ----------
 function setView(v){
   view = v; $('vCam').setAttribute('aria-pressed', v==='cam'); $('vPlan').setAttribute('aria-pressed', v==='plan');
   ctlShot.enabled = v==='cam'; ctlPlan.enabled = v==='plan'; helper.visible = camBody.visible = v==='plan'; $('thirds').hidden = v!=='cam';
-  $('vtag').textContent = v==='cam' ? 'Kameravy · skottets bild' : 'Planvy · hela miljön, skottets kamera i gult'; syncActors();
+  vtagText(); updMovePath(); syncActors();
 }
 function setMode(m){
   mode = m; $('mShot').setAttribute('aria-pressed', m==='shot'); $('mSet').setAttribute('aria-pressed', m==='set');
@@ -1011,10 +1213,10 @@ $('rY').oninput = e => { const a = selA(); if (!a) return; a.y = +e.target.value
 $('bHide').onclick = () => { const a = selA(); if (!a) return; a.hid = !a.hid; syncActors(); saveShot(); renderSide(); };
 function armed(btn, label, fn){ let on = false; btn.onclick = () => { if (!on){ on = true; btn.textContent = 'Klicka igen'; setTimeout(() => { on = false; btn.textContent = label; }, 2200); return; } on = false; btn.textContent = label; fn(); }; }
 armed($('bDel'), 'Ta bort', () => { cur.actors = cur.actors.filter(x => x.k!==sel); sel = null; syncActors(); saveShot(); renderSide(); });
-$('rMM').oninput = e => { cur.cam.mm = +e.target.value; applyCam(); saveShot(); renderSide(); };
-$('rCH').oninput = e => { readCam(); const dy = +e.target.value - cur.cam.p[1]; cur.cam.p[1] += dy; cur.cam.t[1] += dy; applyCam(); saveShot(); renderSide(); };
-$('bLevel').onclick = () => { readCam(); cur.cam.t[1] = cur.cam.p[1]; applyCam(); saveShot(); renderSide(); };
-$('bPrevCam').onclick = () => { for (let j=idx-1;j>=0;j--){ const s = shotsAll[shotKey(SH()[j].id)]; if (s && s.sc===cur.sc){ cur.cam = clone(s.cam); applyCam(); saveShot(); renderSide(); status('Kameran från skott ' + SH()[j].id + '.'); return; } } status('Inget tidigare skott i samma miljö.'); };
+$('rMM').oninput = e => { endToFree(); cc().mm = +e.target.value; applyCam(); saveShot(); renderSide(); };
+$('rCH').oninput = e => { endToFree(); readCam(); const c = cc(), dy = +e.target.value - c.p[1]; c.p[1] += dy; c.t[1] += dy; applyCam(); saveShot(); renderSide(); };
+$('bLevel').onclick = () => { endToFree(); readCam(); cc().t[1] = cc().p[1]; applyCam(); saveShot(); renderSide(); };
+$('bPrevCam').onclick = () => { for (let j=idx-1;j>=0;j--){ const s = shotsAll[shotKey(SH()[j].id)]; if (s && s.sc===cur.sc){ cur.cam = clone(camEnd(s) || s.cam); setEdit('start'); applyCam(); saveShot(); renderSide(); status('Kameran från skott ' + SH()[j].id + '.'); return; } } status('Inget tidigare skott i samma miljö.'); };
 $('note').oninput = e => { cur.note = e.target.value; saveShot(); $('out').textContent = outMode==='vid' ? videoText() : imageText(); };
 $('bCopy').onclick = () => { const t = $('out').textContent; if (NATIVE){ native('copy', {text:t}).then(() => status('Texten är kopierad.')); return; } navigator.clipboard.writeText(t).then(() => status('Texten är kopierad.'), () => { const r = document.createRange(); r.selectNodeContents($('out')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); status('Markerad – kopiera med Cmd+C.'); }); };
 async function offerFile(blob, fname, okMsg){
@@ -1037,7 +1239,7 @@ function layoutBlob(){
   if (keepV!=='cam') setView(keepV); if (keepM!=='shot') setMode(keepM);
   return new Promise(ok => c.toBlob(ok, 'image/png'));
 }
-$('bPng').onclick = async () => { if (!cur) return; offerFile(await layoutBlob(), `${slug(P.name)}_skott_${tagOf().id}_layout.png`, 'Layoutbilden är sparad.'); };
+$('bPng').onclick = async () => { if (!cur) return; offerFile(await withCam(cur.cam, layoutBlob), `${slug(P.name)}_skott_${tagOf().id}_layout.png`, 'Layoutbilden är sparad.'); };
 
 // ---------- spara alla skott ----------
 // Mac-programmet skriver filerna i en mapp man väljer; annars blir det en zip-fil.
@@ -1087,7 +1289,8 @@ $('aGo').onclick = async () => {
       idx = i; sel = null; psel = null; cur = initShot(i); render();
       await new Promise(r => setTimeout(r, 20)); // ingen requestAnimationFrame: den står still när fönstret ligger i bakgrunden
       const base = `skott_${t.id}`;
-      await put(base + '_layout.png', await layoutBlob());
+      await put(base + '_layout.png', await withCam(cur.cam, layoutBlob));
+      if (hasMove(cur)) await put(base + '_slutbild.png', await withCam(camEnd(cur), layoutBlob));
       if (withTxt){
         const txt = `SKOTT ${t.id}${t.sv ? ' – ' + t.sv : ''}\nLayoutbild: ${base}_layout.png\n\n=== VIDEO (Seedance) ===\n${videoText()}\n\n=== STARTBILD (bildmodell, layoutbilden som @Image1) ===\n${imageText()}\n`;
         all.push(txt); await put(base + '.txt', new Blob([enc.encode(txt)], {type:'text/plain'}));
