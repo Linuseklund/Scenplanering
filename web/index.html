@@ -45,6 +45,12 @@ main{display:flex;flex-direction:column;gap:10px;padding:14px 18px;min-width:0;m
 .lbl.sel{outline:2px solid #fff}.lbl.hid{opacity:.45}
 .lbl.pc{background:rgba(20,30,36,.7);font:600 11px var(--ui)}
 .vtag.end{background:#B4532A}
+.ktl{position:relative;height:26px;border:1px solid var(--line);border-radius:8px;background:var(--bg);cursor:pointer;margin:0 9px}
+.ktl .kk{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;transform:rotate(45deg);background:#D2683E;border:2px solid #fff;border-radius:2px;cursor:ew-resize;padding:0}
+.ktl .kk.on{background:var(--ink);outline:2px solid #D2683E}
+.ktl .kk.k0{cursor:pointer}
+.ktl .khead{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--sea);pointer-events:none}
+.ktl .kseg{position:absolute;top:2px;font:600 9.5px var(--mono);color:var(--mute);transform:translateX(-50%);pointer-events:none;white-space:nowrap}
 .vtag{position:absolute;left:10px;top:8px;font:600 12px var(--ui);color:#fff;background:rgba(0,0,0,.5);padding:2px 8px;border-radius:6px;pointer-events:none}
 .warn{position:absolute;left:10px;bottom:8px;right:10px;font:600 12.5px var(--ui);color:#fff;background:color-mix(in srgb,var(--warn) 88%,black);padding:5px 10px;border-radius:6px;pointer-events:none}
 .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#fff;text-align:center;padding:20px;background:var(--vp)}
@@ -160,11 +166,19 @@ dialog::backdrop{background:rgba(5,12,18,.55)}
         <optgroup label="Runt motivet"><option value="orbl">Kretsa åt vänster</option><option value="orbr">Kretsa åt höger</option></optgroup>
         <optgroup label="Objektiv"><option value="zin">Zooma in</option><option value="zout">Zooma ut</option></optgroup>
         <option value="free">Egen – ställ in slutet själv</option>
+        <option value="keys">Keyframes – bygg rörelsen själv</option>
       </select></div>
       <div id="mvOpts" hidden style="display:flex;flex-direction:column;gap:8px">
         <div class="fld" id="mvAmtF"><label for="rAmt">Hur långt</label><input type="range" id="rAmt" min="0.1" max="1" step="0.05"><output id="oAmt"></output></div>
-        <div class="fld2"><label for="mvSpd">Tempo</label><select id="mvSpd" class="btn"><option value="slow">Lugnt</option><option value="mid">Normalt</option><option value="fast">Snabbt</option></select></div>
-        <div class="row"><div class="seg" role="group" aria-label="Visa kameran i"><button id="eStart" aria-pressed="true">Start</button><button id="eEnd" aria-pressed="false">Slut</button></div><button class="btn" id="bPlay">▶ Spela upp</button><button class="btn" id="bEndPng">Spara slutbild</button></div>
+        <div class="fld2" id="mvSpdF"><label for="mvSpd">Tempo</label><select id="mvSpd" class="btn"><option value="slow">Lugnt</option><option value="mid">Normalt</option><option value="fast">Snabbt</option></select></div>
+        <div class="row"><div class="seg" id="mvSE" role="group" aria-label="Visa kameran i"><button id="eStart" aria-pressed="true">Start</button><button id="eEnd" aria-pressed="false">Slut</button></div><button class="btn" id="bPlay">▶ Spela upp</button><button class="btn" id="bEndPng">Spara slutbild</button></div>
+        <div id="kWrap" hidden style="display:flex;flex-direction:column;gap:8px">
+          <div class="ktl" id="ktl" title="Klicka för att flytta tidslinjen hit. Dra en keyframe för att ändra när den kommer."><div class="khead" id="kLine"></div></div>
+          <input type="range" id="kHead" min="0" max="5" step="0.05" aria-label="Tidslinje">
+          <div class="row"><button class="btn sm" id="kPrev" title="Förra keyframen">◀</button><output id="kNow" style="font:600 12px var(--mono);min-width:48px;text-align:center"></output><button class="btn sm" id="kNext" title="Nästa keyframe">▶</button><button class="btn sm" id="kAdd">+ Keyframe här</button><button class="btn sm" id="kDel">Ta bort</button></div>
+          <div class="fld2" id="kSelF"><label for="kT">Keyframe <span id="kNo"></span></label><div class="row"><input type="number" id="kT" min="0.1" step="0.1" style="width:64px" class="btn" aria-label="Tid i sekunder"> s<select id="kEase" class="btn" aria-label="Fart fram till keyframen"><option value="smooth">Mjuk start och stopp</option><option value="linear">Jämn fart</option><option value="in">Ökar farten</option><option value="out">Bromsar in</option></select></div></div>
+          <div class="fld2"><label for="kDur">Hela rörelsen</label><div class="row"><input type="number" id="kDur" min="0.5" step="0.5" style="width:64px" class="btn"> s<button class="btn sm" data-kspd="0.75" title="Allt går snabbare">Snabbare</button><button class="btn sm" data-kspd="1.333" title="Allt går långsammare">Långsammare</button></div></div>
+        </div>
         <p class="hint" id="mvHint"></p>
       </div>
     </section>
@@ -726,11 +740,11 @@ function syncActors(){
 }
 // ---------- kamerarörelse ----------
 // cur.mv = {type, amt, spd, end}. Färdiga rörelser räknas fram från startkameran; 'free' har en egen sparad slutkamera.
-let camEdit = 'start', forcedCam = null, playing = null;
+let camEdit = 'start', forcedCam = null, playing = null, kSel = 0, kTime = 0;
 const MV = {
   in:{sv:'Åka in', u:'m'}, out:{sv:'Åka ut', u:'m'}, left:{sv:'Åka vänster', u:'m'}, right:{sv:'Åka höger', u:'m'}, up:{sv:'Kran upp', u:'m'}, down:{sv:'Kran ned', u:'m'},
   panl:{sv:'Panorera vänster', u:'°'}, panr:{sv:'Panorera höger', u:'°'}, tiltu:{sv:'Tilta upp', u:'°'}, tiltd:{sv:'Tilta ned', u:'°'},
-  orbl:{sv:'Kretsa vänster', u:'°'}, orbr:{sv:'Kretsa höger', u:'°'}, zin:{sv:'Zooma in', u:'mm'}, zout:{sv:'Zooma ut', u:'mm'}, free:{sv:'Egen'}
+  keys:{sv:'Keyframes'}, orbl:{sv:'Kretsa vänster', u:'°'}, orbr:{sv:'Kretsa höger', u:'°'}, zin:{sv:'Zooma in', u:'mm'}, zout:{sv:'Zooma ut', u:'mm'}, free:{sv:'Egen'}
 };
 const SPD = {slow:{s:6, en:'slow'}, mid:{s:4, en:'steady'}, fast:{s:2.5, en:'fast'}};
 const V3 = a => new T.Vector3(...a), arr = v => v.toArray().map(x => +x.toFixed(3));
@@ -761,6 +775,7 @@ function camEnd(st){
   if (!hasMove(st)) return null;
   const mv = st.mv, c = st.cam;
   if (mv.type === 'free') return mv.end || clone(c);
+  if (mv.type === 'keys') return clone(mv.keys.length ? mv.keys[mv.keys.length-1].cam : c);
   const p = V3(c.p), t = V3(c.t), f = t.clone().sub(p), dist = f.length(), up = new T.Vector3(0,1,0);
   const fn = f.clone().normalize(), right = new T.Vector3().crossVectors(fn, up); if (right.lengthSq() < 1e-6) right.set(1,0,0); right.normalize();
   const k = mvSize(c, mv), rad = k*Math.PI/180;
@@ -780,7 +795,7 @@ function camEnd(st){
 }
 // Kameran en bit in i rörelsen (u = 0…1). Färdiga rörelser följer sin egen bana; en egen rörelse går rakt med mjuk vridning,
 // eller i en båge om man kretsat runt siktpunkten.
-function camAtShot(st, u){ return st.mv.type === 'free' ? camAt(st.cam, st.mv.end, orbitPivot(st), u) : camEnd({cam:st.cam, mv:{...st.mv, amt:(st.mv.amt ?? 0.5)*u}}); }
+function camAtShot(st, u){ return st.mv.type === 'keys' ? camAtTime(st, u*keyDur(st)) : st.mv.type === 'free' ? camAt(st.cam, st.mv.end, orbitPivot(st), u) : camEnd({cam:st.cam, mv:{...st.mv, amt:(st.mv.amt ?? 0.5)*u}}); }
 function camAt(a, b, pivot, u){
   const pa = V3(a.p), ta = V3(a.t), pb = V3(b.p), tb = V3(b.t), mm = a.mm + (b.mm - a.mm)*u;
   let p = pa.clone().lerp(pb, u);
@@ -795,16 +810,74 @@ function camAt(a, b, pivot, u){
   return {p:arr(p), t:arr(p.add(d)), mm};
 }
 // En egen rörelse räknas som kretsning om motivet står kvar mitt i bild medan kameran flyttar sig i sidled och vrider sig.
-function orbitPivot(st){
-  if (st.mv.type !== 'free') return null;
-  const a = st.cam, b = st.mv.end, pv = subject(a).pv, pa = V3(a.p), pb = V3(b.p), fb = V3(b.t).sub(pb).normalize();
+function orbitPivot(st){ return st.mv.type === 'free' ? orbitPivotAB(st.cam, st.mv.end) : null; }
+function orbitPivotAB(a, b){
+  const pv = subject(a).pv, pa = V3(a.p), pb = V3(b.p), fb = V3(b.t).sub(pb).normalize();
   const off = pv.clone().sub(pb), miss = off.clone().sub(fb.clone().multiplyScalar(off.dot(fb))).length();
   const fa = V3(a.t).sub(pa); const yaw = Math.abs(Math.atan2(fa.x*fb.z - fa.z*fb.x, fa.x*fb.x + fa.z*fb.z));
   return miss < 0.2*off.length() && pa.distanceTo(pb) > 0.5 && yaw > 10*Math.PI/180 ? pv : null;
 }
 const isOrbit = st => !!orbitPivot(st);
+// ---------- keyframes ----------
+// mv.keys = [{t, cam, ease}] efter starten; keyframe 0 är alltid skottets kamera (cur.cam) vid 0 s.
+// ease gäller vägen fram till keyframen: smooth, linear, in (ökar), out (bromsar).
+const allKeys = st => [{t:0, cam:st.cam, ease:'smooth'}, ...(st.mv.keys || [])];
+const keyDur = st => { const k = st.mv.keys || []; return k.length ? k[k.length-1].t : 0; };
+const EASE = {smooth:u => u < 0.5 ? 2*u*u : 1 - Math.pow(-2*u + 2, 2)/2, linear:u => u, in:u => u*u*u, out:u => 1 - Math.pow(1-u, 3)};
+const fmtS = t => t.toFixed(1).replace('.', ',') + ' s';
+function camAtTime(st, time){
+  const K = allKeys(st), n = K.length; if (n < 2 || time <= 0) return clone(K[0].cam);
+  if (time >= K[n-1].t) return clone(K[n-1].cam);
+  let i = 0; while (i < n-2 && time > K[i+1].t) i++;
+  const u = (time - K[i].t) / Math.max(1e-6, K[i+1].t - K[i].t), e = (EASE[K[i+1].ease] || EASE.smooth)(Math.min(1, Math.max(0, u)));
+  const mk = key => new T.CatmullRomCurve3(K.map(k => V3(k.cam[key])), false, 'centripetal');
+  const s_ = (i + e) / (n - 1);
+  return {p:arr(mk('p').getPoint(s_)), t:arr(mk('t').getPoint(s_)), mm:+(K[i].cam.mm + (K[i+1].cam.mm - K[i].cam.mm)*e).toFixed(1)};
+}
+function keyCam(){ const K = allKeys(cur); return kSel != null && K[kSel] ? K[kSel].cam : camAtTime(cur, kTime); }
+// Flyttar man kameran mellan två keyframes läggs en ny keyframe in där tidslinjen står.
+function addKeyAt(time){
+  time = Math.round(time*20)/20; if (time < 0.05){ kSel = 0; return; }
+  const K = cur.mv.keys, near = allKeys(cur).findIndex(k => Math.abs(k.t - time) < 0.05); if (near >= 0){ kSel = near; return; }
+  const key = {t:time, cam:camAtTime(cur, time), ease:'smooth'}; K.push(key); K.sort((a, b) => a.t - b.t); kSel = K.indexOf(key) + 1;
+}
+function setTime(t, snap = true){
+  const K = allKeys(cur); kTime = Math.max(0, Math.min(keyDur(cur), t));
+  const near = snap ? K.findIndex(k => Math.abs(k.t - kTime) < Math.max(0.06, keyDur(cur)*0.015)) : -1;
+  kSel = near >= 0 ? near : null; if (near >= 0) kTime = K[near].t;
+  applyCam(); vtagText(); renderSide();
+}
+function renderKeys(){
+  const K = allKeys(cur), D = Math.max(0.1, keyDur(cur)), tl = $('ktl'), pct = t => (t / D * 100) + '%';
+  tl.querySelectorAll('.kk,.kseg').forEach(x => x.remove());
+  K.forEach((k, i) => {
+    if (i){ const sg = document.createElement('span'); sg.className = 'kseg'; sg.style.left = pct((K[i-1].t + k.t)/2); sg.textContent = segSpeed(K[i-1].cam, k.cam, k.t - K[i-1].t).sv; tl.appendChild(sg); }
+    const b = document.createElement('button'); b.className = 'kk' + (i === kSel ? ' on' : '') + (i ? '' : ' k0'); b.style.left = pct(k.t); b.dataset.k = i;
+    b.title = `Keyframe ${i+1} · ${fmtS(k.t)}`; b.setAttribute('aria-label', b.title); tl.appendChild(b);
+  });
+  $('kLine').style.left = pct(kTime);
+  $('kHead').max = D; $('kHead').value = kTime; $('kNow').textContent = fmtS(kTime);
+  $('kSelF').hidden = !kSel; $('kDel').disabled = !kSel;
+  if (kSel){ const k = K[kSel]; $('kNo').textContent = kSel + 1; if (document.activeElement !== $('kT')) $('kT').value = k.t; $('kEase').value = k.ease || 'smooth'; }
+  if (document.activeElement !== $('kDur')) $('kDur').value = +D.toFixed(2);
+}
+// Fart mellan två keyframes: meter per sekund och grader per sekund, i ord.
+function segSpeed(a, b, dt){
+  const pa = V3(a.p), pb = V3(b.p), fa = V3(a.t).sub(pa).normalize(), fb = V3(b.t).sub(pb).normalize();
+  const ms = pa.distanceTo(pb) / Math.max(0.01, dt), ds = fa.angleTo(fb)*180/Math.PI / Math.max(0.01, dt), zs = Math.abs(b.mm - a.mm) / Math.max(0.01, dt);
+  if (ms < 0.05 && ds < 1 && zs < 0.5) return {sv:'stilla', en:'still', still:true};
+  const lv = Math.max(ms < 0.7 ? 0 : ms < 2.5 ? 1 : 2, ds < 12 ? 0 : ds < 35 ? 1 : 2, zs < 6 ? 0 : zs < 20 ? 1 : 2);
+  return {sv:['lugnt', 'normalt', 'snabbt'][lv], en:['slow', 'steady', 'fast'][lv], ms, ds};
+}
+function keyHint(){
+  const K = allKeys(cur);
+  if (kSel === 0) return 'Keyframe 1 är skottets startkamera. Flytta tidslinjen och kameran för att lägga till fler – farten blir avståndet delat med tiden mellan keyframes.';
+  if (kSel){ const a = K[kSel-1], b = K[kSel], sp = segSpeed(a.cam, b.cam, b.t - a.t);
+    return `Från keyframe ${kSel} till ${kSel+1}: ${fmtS(b.t - a.t)}${sp.still ? ', kameran står still' : `, ${sp.ms.toFixed(1).replace('.', ',')} m/s och ${Math.round(sp.ds)}°/s – ${sp.sv}`}. Ändra tiden eller farten nedan, eller flytta kameran.`; }
+  return 'Mellan två keyframes visas kameran som den rör sig. Flytta kameran här (dra i bilden, objektiv, höjd) så läggs en ny keyframe in.';
+}
 // Kameran som visas och redigeras just nu: start, eller slutet av en egen rörelse.
-const cc = () => forcedCam || (camEdit === 'end' && hasMove(cur) ? (cur.mv.type === 'free' ? cur.mv.end : camEnd(cur)) : cur.cam);
+const cc = () => forcedCam || (cur?.mv?.type === 'keys' ? keyCam() : camEdit === 'end' && hasMove(cur) ? (cur.mv.type === 'free' ? cur.mv.end : camEnd(cur)) : cur.cam);
 function setShotCam(c){ applying = true; shotCam.position.set(...c.p); ctlShot.target.set(...c.t); shotCam.fov = vfov(c.mm); shotCam.updateProjectionMatrix(); ctlShot.update(); applying = false; }
 // Kör fn med kameran c (start eller slut) och ställ sedan tillbaka.
 function withCam(c, fn){ const keep = forcedCam; forcedCam = c; setShotCam(c); try { return fn(); } finally { forcedCam = keep; setShotCam(cc()); } }
@@ -903,7 +976,7 @@ function render(){
   $('scSel').value = cur.sc;
   buildWorld(); syncPieces(); syncActors(); applyCam(); renderSide(); renderList();
 }
-function go(i){ if (!P || i<0 || i>=SH().length) return; stopPlay(); camEdit = 'start'; idx = i; sel = null; psel = null; cur = initShot(i); try{ localStorage.setItem(LS+'-idx-'+pid, String(i)); }catch{} render(); }
+function go(i){ if (!P || i<0 || i>=SH().length) return; stopPlay(); camEdit = 'start'; kSel = 0; kTime = 0; idx = i; sel = null; psel = null; cur = initShot(i); try{ localStorage.setItem(LS+'-idx-'+pid, String(i)); }catch{} render(); }
 function openProject(id){
   pid = id; P = id ? projects[id] || null : null; builtBase = null;
   if (P){ P.cast ||= {}; P.sets ||= {}; P.shots ||= []; renderSetSelects(); let i = 0; try { i = +localStorage.getItem(LS+'-idx-'+pid) || 0; } catch {} idx = Math.min(Math.max(0,i), Math.max(0, SH().length-1)); cur = SH().length ? initShot(idx) : null; }
@@ -920,46 +993,77 @@ function addPiece(t){
 }
 
 function vtagText(){
-  const e = camEdit === 'end' && hasMove(cur), t = $('vtag');
-  t.textContent = view==='cam' ? (playing ? 'Kameravy · spelar rörelsen' : e ? 'Kameravy · SLUTET av rörelsen' : 'Kameravy · skottets bild') : 'Planvy · hela miljön, skottets kamera i gult' + (hasMove(cur) ? ', rörelsen i orange' : '');
-  t.classList.toggle('end', view==='cam' && (e || !!playing));
+  const K = cur?.mv?.type === 'keys', e = !K && camEdit === 'end' && hasMove(cur), t = $('vtag');
+  t.textContent = view==='cam' ? (playing ? 'Kameravy · spelar rörelsen' : K && kSel != null ? `Kameravy · keyframe ${kSel+1} (${fmtS(kTime)})` : K ? `Kameravy · ${fmtS(kTime)}, mellan keyframes` : e ? 'Kameravy · SLUTET av rörelsen' : 'Kameravy · skottets bild') : 'Planvy · hela miljön, skottets kamera i gult' + (hasMove(cur) ? ', rörelsen i orange' : '');
+  t.classList.toggle('end', view==='cam' && (e || !!playing || (K && kSel !== 0)));
 }
 function setEdit(e){ camEdit = e; $('eStart').setAttribute('aria-pressed', e==='start'); $('eEnd').setAttribute('aria-pressed', e==='end'); applyCam(); vtagText(); renderSide(); }
 // Ändrar man kameran medan slutet av en färdig rörelse visas blir det en egen rörelse med det slutet.
-function endToFree(){ if (camEdit !== 'end' || !hasMove(cur) || cur.mv.type === 'free') return; cur.mv = {type:'free', spd:cur.mv.spd, end:camEnd(cur)}; }
+function endToFree(){ if (cur?.mv?.type === 'keys'){ if (kSel == null) addKeyAt(kTime); return; } if (camEdit !== 'end' || !hasMove(cur) || cur.mv.type === 'free') return; cur.mv = {type:'free', spd:cur.mv.spd, end:camEnd(cur)}; }
 function renderMove(){
   if (!cur) return;
   const mv = cur.mv || {type:'none'}, on = hasMove(cur);
   $('mvType').value = mv.type || 'none'; $('mvOpts').hidden = !on;
   if (on){
-    const m = MV[mv.type]; $('mvAmtF').hidden = mv.type === 'free';
-    if (mv.type !== 'free'){ $('rAmt').value = mv.amt ?? 0.5; $('oAmt').textContent = fmtSize(cur.cam, mv); }
+    const K = mv.type === 'keys'; $('mvAmtF').hidden = mv.type === 'free' || K; $('mvSpdF').hidden = K; $('mvSE').hidden = K; $('kWrap').hidden = !K; if (K) renderKeys();
+    if (mv.type !== 'free' && !K){ $('rAmt').value = mv.amt ?? 0.5; $('oAmt').textContent = fmtSize(cur.cam, mv); }
     $('mvSpd').value = mv.spd || 'slow';
     $('mvHint').textContent = mv.type === 'free' ? 'Klicka Slut och flytta kameran dit rörelsen ska sluta (dra i bilden, objektiv och höjd). Start visar var den börjar.'
       : 'Start är skottets kamera. Klicka Slut för att se var rörelsen slutar – flyttar du kameran där blir det en egen rörelse.';
+    if (K) $('mvHint').textContent = keyHint();
   }
   $('bPlay').textContent = playing ? '■ Stoppa' : '▶ Spela upp';
   updMovePath();
 }
 $('mvType').onchange = e => {
-  const v = e.target.value, old = cur.mv || {};
+  const v = e.target.value, old = cur.mv || {}, prevEnd = camEnd(cur), prevDur = old.type === 'keys' ? keyDur(cur) : SPD[old.spd || 'slow'].s;
   cur.mv = v === 'none' ? {type:'none'} : {type:v, amt:old.amt ?? 0.5, spd:old.spd || 'slow', ...(v === 'free' ? {end:camEnd(cur) || clone(cur.cam)} : {})};
+  if (v === 'keys'){ cur.mv = {type:'keys', keys:[{t:prevDur, cam:prevEnd || camEnd({cam:cur.cam, mv:{type:'in', amt:0.4}}), ease:'smooth'}]}; kSel = 0; kTime = 0; camEdit = 'start'; }
   if (v === 'free' && cur.mv.end && V3(cur.mv.end.p).distanceTo(V3(cur.cam.p)) < 1e-3) cur.mv.end = camEnd({cam:cur.cam, mv:{type:'in', amt:0.4}});
   cur.done = false; stopPlay(); if (v === 'none') camEdit = 'start';
   setEdit(v === 'free' ? 'end' : camEdit); saveShot();
 };
 $('rAmt').oninput = e => { cur.mv.amt = +e.target.value; applyCam(); saveShot(); renderSide(); };
 $('mvSpd').onchange = e => { cur.mv.spd = e.target.value; saveShot(); renderSide(); };
+$('kHead').oninput = e => { stopPlay(); setTime(+e.target.value); };
+$('kPrev').onclick = () => { const K = allKeys(cur), j = [...K].reverse().find(k => k.t < kTime - 0.01); setTime(j ? j.t : 0); };
+$('kNext').onclick = () => { const j = allKeys(cur).find(k => k.t > kTime + 0.01); if (j) setTime(j.t); };
+// Ny keyframe: där tidslinjen står, mitt emellan om man står på en keyframe, eller efter slutet om man står på den sista.
+$('kAdd').onclick = () => { stopPlay(); const K = allKeys(cur), D = keyDur(cur);
+  if (kSel === K.length - 1){ cur.mv.keys.push({t:+(D + Math.max(1, D/K.length)).toFixed(2), cam:clone(K[kSel].cam), ease:'smooth'}); kTime = keyDur(cur); kSel = K.length; }
+  else { if (kSel != null){ kTime = (K[kSel].t + K[kSel+1].t)/2; kSel = null; } addKeyAt(kTime); }
+  applyCam(); vtagText(); renderSide(); cur.done = false; saveShot(); };
+$('kDel').onclick = () => { if (!kSel) return; cur.mv.keys.splice(kSel-1, 1); if (!cur.mv.keys.length) cur.mv.keys.push({t:2, cam:clone(cur.cam), ease:'smooth'}); setTime(Math.min(kTime, keyDur(cur)), false); saveShot(); };
+$('kT').onchange = e => { const K = allKeys(cur); if (!kSel) return; const lo = K[kSel-1].t + 0.1, hi = K[kSel+1] ? K[kSel+1].t - 0.1 : 120;
+  K[kSel].t = +Math.min(hi, Math.max(lo, +e.target.value || lo)).toFixed(2); kTime = K[kSel].t; cur.done = false; saveShot(); renderSide(); };
+$('kEase').onchange = e => { if (!kSel) return; allKeys(cur)[kSel].ease = e.target.value; cur.done = false; saveShot(); renderSide(); };
+// Hela rörelsens längd: alla keyframes flyttas i samma proportion, så farten ändras men inte formen.
+function scaleKeys(f){ if (!(f > 0)) return; cur.mv.keys.forEach(k => k.t = +(k.t*f).toFixed(2)); kTime *= f; cur.done = false; saveShot(); renderSide(); }
+$('kDur').onchange = e => { const D = keyDur(cur), v = Math.max(0.5, +e.target.value || D); scaleKeys(v / D); };
+document.querySelectorAll('[data-kspd]').forEach(b => b.onclick = () => scaleKeys(+b.dataset.kspd));
+// Tidslinjen: klick flyttar tiden, en keyframe kan dras.
+$('ktl').addEventListener('pointerdown', e => {
+  const tl = $('ktl'), r = tl.getBoundingClientRect(), D = Math.max(0.1, keyDur(cur)), at = x => Math.max(0, Math.min(1, (x - r.left) / r.width)) * D;
+  const kb = e.target.closest('.kk'); stopPlay();
+  if (!kb){ setTime(at(e.clientX)); return; }
+  const i = +kb.dataset.k; setTime(allKeys(cur)[i].t); if (!i) return;
+  const K = allKeys(cur), last = i === K.length - 1, lo = K[i-1].t + 0.1, hi = last ? 1e9 : K[i+1].t - 0.1, x0 = e.clientX, t0 = K[i].t;
+  tl.setPointerCapture(e.pointerId);
+  const mv = ev => { const t = Math.min(hi, Math.max(lo, t0 + (ev.clientX - x0) / r.width * D)); K[i].t = +t.toFixed(2); kTime = K[i].t; renderKeys(); $('mvHint').textContent = keyHint(); };
+  const up = () => { tl.removeEventListener('pointermove', mv); tl.removeEventListener('pointerup', up); cur.done = false; saveShot(); renderSide(); };
+  tl.addEventListener('pointermove', mv); tl.addEventListener('pointerup', up);
+});
 $('eStart').onclick = () => setEdit('start'); $('eEnd').onclick = () => setEdit('end');
 function stopPlay(){ if (!playing) return; cancelAnimationFrame(playing.raf); playing = null; ctlShot.enabled = view==='cam'; applyCam(); vtagText(); renderMove(); }
 $('bPlay').onclick = () => {
   if (playing){ stopPlay(); return; }
   if (!hasMove(cur)) return;
-  const st = {cam:clone(cur.cam), mv:clone(cur.mv)}, dur = SPD[cur.mv.spd || 'slow'].s * 1000, t0 = performance.now();
+  const st = {cam:clone(cur.cam), mv:clone(cur.mv)}, dur = (cur.mv.type === 'keys' ? keyDur(cur) : SPD[cur.mv.spd || 'slow'].s) * 1000, t0 = performance.now();
   ctlShot.enabled = false;
   const step = now => {
     const u = Math.min(1, (now - t0) / dur), e = u < 0.5 ? 2*u*u : 1 - Math.pow(-2*u + 2, 2)/2;
-    setShotCam(camAtShot(st, e));
+    setShotCam(camAtShot(st, st.mv.type === 'keys' ? u : e));
+    if (st.mv.type === 'keys'){ const tt = u*keyDur(st); $('kHead').value = tt; $('kNow').textContent = fmtS(tt); $('kLine').style.left = (u*100) + '%'; }
     if (u < 1) playing.raf = requestAnimationFrame(step); else setTimeout(stopPlay, 600);
   };
   playing = {raf:requestAnimationFrame(step)}; vtagText(); renderMove();
@@ -968,10 +1072,12 @@ $('bEndPng').onclick = async () => { if (!hasMove(cur)) return; offerFile(await 
 // Planvyn: rörelsens bana och en orange kamera där den slutar.
 const mvLine = new T.Line(new T.BufferGeometry(), new T.LineBasicMaterial({color:0xD2683E})); mvLine.visible = false; scene.add(mvLine);
 const endBody = new T.Mesh(box(0.5,0.35,0.7), new T.MeshBasicMaterial({color:0xD2683E, transparent:true, opacity:0.8})); endBody.visible = false; scene.add(endBody);
+const kDots = new T.Points(new T.BufferGeometry(), new T.PointsMaterial({color:0xD2683E, size:9, sizeAttenuation:false})); kDots.visible = false; scene.add(kDots);
 function updMovePath(){
-  const on = !!cur && view==='plan' && hasMove(cur); mvLine.visible = endBody.visible = on; if (!on) return;
+  const on = !!cur && view==='plan' && hasMove(cur); mvLine.visible = endBody.visible = on; kDots.visible = on && cur.mv.type === 'keys'; if (!on) return;
+  if (kDots.visible){ kDots.geometry.dispose(); kDots.geometry = new T.BufferGeometry().setFromPoints(allKeys(cur).map(k => V3(k.cam.p))); }
   const b = camEnd(cur), pts = [];
-  for (let i=0;i<=40;i++) pts.push(V3(camAtShot(cur, i/40).p));
+  for (let i=0;i<=80;i++) pts.push(V3(camAtShot(cur, i/80).p));
   mvLine.geometry.dispose(); mvLine.geometry = new T.BufferGeometry().setFromPoints(pts);
   endBody.position.set(...b.p); endBody.lookAt(...b.t);
 }
@@ -994,13 +1100,31 @@ function moveText(){
     zin:`${sp} optical zoom in from ${cur.cam.mm} mm to ${Math.round(k)} mm, the camera stays in place`,
     zout:`${sp} optical zoom out from ${cur.cam.mm} mm to ${Math.round(k)} mm, the camera stays in place`,
   };
+  if (mv.type === 'keys'){
+    const K = allKeys(cur), L = [`Camera move: one continuous keyframed camera move, ${fmtS(keyDur(cur)).replace(',', '.').replace(' s', ' seconds')} in total, no cut:`];
+    const EN = {smooth:'easing in and out', linear:'at a constant speed', in:'accelerating', out:'decelerating to a gentle stop'};
+    for (let i=1;i<K.length;i++){
+      const a = K[i-1], b = K[i], sp = segSpeed(a.cam, b.cam, b.t - a.t), span = `${+a.t.toFixed(1)}–${+b.t.toFixed(1)} s`;
+      if (sp.still){ L.push(`- ${span}: the camera holds completely still.`); continue; }
+      const parts = deltaParts(a.cam, b.cam, focusName(a.cam));
+      L.push(`- ${span}: ${sp.en} ${parts.length ? parts.join(', then ').replace(/, then ([^,]*)$/, ' and $1') : 'subtle camera drift'}, ${EN[b.ease || 'smooth']}.`);
+    }
+    L.push('Follow these timings and speeds exactly. Perfectly smooth, no shake. No other camera movement.');
+    return L.join('\n');
+  }
   let s = T_[mv.type];
-  if (mv.type === 'free'){
-    const a = cur.cam, b = camEnd(cur), pa = V3(a.p), pb = V3(b.p), fa = V3(a.t).sub(pa), fb = V3(b.t).sub(pb), up = new T.Vector3(0,1,0);
+  if (mv.type === 'free'){ const parts = deltaParts(cur.cam, camEnd(cur), f); s = parts.length ? `${sp} combined camera move: ${parts.join(', then ').replace(/, then ([^,]*)$/, ' and $1')}` : `${sp} subtle camera drift`; }
+  return `Camera move: one continuous ${s}, with gentle ease-in and ease-out, perfectly smooth, no shake, no cut. No other camera movement.`;
+}
+// Rörelsen mellan två kameror i ord (åka, sidled, panorera, höjd, tilt, zoom – eller kretsa runt motivet).
+function deltaParts(a, b, f){
+  const m1 = x => x < 2 ? x.toFixed(1) : Math.round(x);
+  {
+    const pa = V3(a.p), pb = V3(b.p), fa = V3(a.t).sub(pa), fb = V3(b.t).sub(pb), up = new T.Vector3(0,1,0);
     const fh = fa.clone().setY(0).normalize(), rt = new T.Vector3().crossVectors(fh, up).normalize(), d = pb.clone().sub(pa);
     const fw = d.dot(fh), lat = d.dot(rt), vert = d.y, parts = [];
     const yaw = Math.round(Math.atan2(fa.x*fb.z - fa.z*fb.x, fa.x*fb.x + fa.z*fb.z)*180/Math.PI), pitch = Math.round((Math.asin(fb.clone().normalize().y) - Math.asin(fa.clone().normalize().y))*180/Math.PI);
-    if (isOrbit(cur)) parts.push(`arc shot orbiting around ${f} to the ${lat < 0 ? 'left' : 'right'}, about ${Math.abs(yaw)}°`);
+    if (orbitPivotAB(a, b)) parts.push(`arc shot orbiting around ${f} to the ${lat < 0 ? 'left' : 'right'}, about ${Math.abs(yaw)}°`);
     else {
       if (Math.abs(fw) > 0.3) parts.push(fw > 0 ? `dolly in about ${m1(fw)} m toward ${f}` : `dolly out about ${m1(-fw)} m`);
       if (Math.abs(lat) > 0.3) parts.push(`track ${lat < 0 ? 'left' : 'right'} about ${m1(Math.abs(lat))} m`);
@@ -1009,9 +1133,8 @@ function moveText(){
     if (Math.abs(vert) > 0.3) parts.push(`${vert > 0 ? 'rise' : 'lower'} about ${m1(Math.abs(vert))} m`);
     if (Math.abs(pitch) > 4) parts.push(`tilt ${pitch > 0 ? 'up' : 'down'} about ${Math.abs(pitch)}°`);
     if (Math.abs(b.mm - a.mm) > 2) parts.push(`zoom ${b.mm > a.mm ? 'in' : 'out'} from ${Math.round(a.mm)} mm to ${Math.round(b.mm)} mm`);
-    s = parts.length ? `${sp} combined camera move: ${parts.join(', then ').replace(/, then ([^,]*)$/, ' and $1')}` : `${sp} subtle camera drift`;
+    return parts;
   }
-  return `Camera move: one continuous ${s}, with gentle ease-in and ease-out, perfectly smooth, no shake, no cut. No other camera movement.`;
 }
 
 // ---------- text till Higgsfield ----------
