@@ -1,0 +1,1360 @@
+<meta charset="utf-8">
+<title>Scenplanering</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+/* Layout: projekt + skottlista | 3D-vy 16:9 | roller/miljö, kamera och text till Higgsfield */
+:root{
+  --bg:#EEF0EC; --panel:#FBFBF8; --ink:#13232F; --mute:#5D6A72; --line:#D5D9D2;
+  --sea:#1F5C78; --gold:#DE9A2E; --done:#2F8A5B; --warn:#C0562F; --vp:#0F1C26;
+  --ui:-apple-system,system-ui,sans-serif; --disp:ui-rounded,-apple-system,system-ui,sans-serif; --mono:ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0D1820;--panel:#14232E;--ink:#E9E6DD;--mute:#9AA7AF;--line:#2A3D49;--sea:#6CB2D0;--gold:#F0B850;--done:#5BC48A;--warn:#E98260;--vp:#081118;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0D1820;--panel:#14232E;--ink:#E9E6DD;--mute:#9AA7AF;--line:#2A3D49;--sea:#6CB2D0;--gold:#F0B850;--done:#5BC48A;--warn:#E98260;--vp:#081118;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--ui);margin:0}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.app{display:grid;grid-template-columns:220px minmax(0,1fr) 340px;height:100%;padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+aside{background:var(--panel);min-height:0;overflow:auto}
+.list{border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.brand{padding:14px 12px 4px}.brand h1{font:600 19px/1.15 var(--disp);margin:0}
+.lf{display:flex;gap:6px;padding:5px 10px;align-items:center}
+.lf select{flex:1;min-width:0;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:5px 6px;font-size:13px}
+#shots{overflow:auto;flex:1;padding:0 6px 8px}
+.si{display:flex;gap:8px;align-items:center;width:100%;border:0;background:transparent;border-radius:8px;padding:5px 8px;text-align:left}
+.si:hover{background:color-mix(in srgb,var(--sea) 10%,transparent)}
+.si[aria-current="true"]{background:color-mix(in srgb,var(--gold) 28%,transparent)}
+.si .n{font:700 13px var(--mono);min-width:42px}.si .s{font-size:12px;color:var(--mute);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--mute);flex:none}.dot.p{background:var(--gold);border-color:var(--gold)}.dot.d{background:var(--done);border-color:var(--done)}
+main{display:flex;flex-direction:column;gap:10px;padding:14px 18px;min-width:0;min-height:0;overflow:auto}
+.hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.hd h2{font:600 26px var(--disp);margin:0}.hd .meta{color:var(--mute);font-size:13px}
+.sv{margin:0;max-width:80ch}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:5px 14px;font-weight:600;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.vpw{position:relative;width:100%;max-width:1200px;aspect-ratio:16/9;background:var(--vp);border-radius:10px;overflow:hidden;touch-action:none}
+.vpw canvas{display:block;width:100%;height:100%}
+.thirds{position:absolute;inset:0;pointer-events:none;background:
+ linear-gradient(to right,transparent calc(33.33% - .5px),rgba(255,255,255,.35) calc(33.33% - .5px),rgba(255,255,255,.35) calc(33.33% + .5px),transparent calc(33.33% + .5px),transparent calc(66.66% - .5px),rgba(255,255,255,.35) calc(66.66% - .5px),rgba(255,255,255,.35) calc(66.66% + .5px),transparent calc(66.66% + .5px)),
+ linear-gradient(to bottom,transparent calc(33.33% - .5px),rgba(255,255,255,.35) calc(33.33% - .5px),rgba(255,255,255,.35) calc(33.33% + .5px),transparent calc(33.33% + .5px),transparent calc(66.66% - .5px),rgba(255,255,255,.35) calc(66.66% - .5px),rgba(255,255,255,.35) calc(66.66% + .5px),transparent calc(66.66% + .5px))}
+.lbl{position:absolute;transform:translate(-50%,-100%);font:700 11.5px var(--mono);color:#fff;padding:1px 6px;border-radius:999px;pointer-events:none;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.lbl.sel{outline:2px solid #fff}.lbl.hid{opacity:.45}
+.lbl.pc{background:rgba(20,30,36,.7);font:600 11px var(--ui)}
+.vtag{position:absolute;left:10px;top:8px;font:600 12px var(--ui);color:#fff;background:rgba(0,0,0,.5);padding:2px 8px;border-radius:6px;pointer-events:none}
+.warn{position:absolute;left:10px;bottom:8px;right:10px;font:600 12.5px var(--ui);color:#fff;background:color-mix(in srgb,var(--warn) 88%,black);padding:5px 10px;border-radius:6px;pointer-events:none}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#fff;text-align:center;padding:20px;background:var(--vp)}
+.hint{color:var(--mute);font-size:12.5px;margin:0;max-width:90ch}
+kbd{font:600 11px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px}
+.side{border-left:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:16px}
+.side h3,dialog h3{font:600 12px var(--ui);text-transform:uppercase;letter-spacing:.08em;color:var(--mute);margin:0 0 6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:var(--bg);border-radius:999px;padding:3px 10px 3px 4px;font-size:12.5px}
+.chip code{font:700 11.5px var(--mono);color:#fff;border-radius:999px;padding:1px 6px}
+.chip.in{border-color:var(--done)}.chip.off{opacity:.55}
+.chip[aria-pressed="true"]{border-color:var(--gold);box-shadow:0 0 0 2px color-mix(in srgb,var(--gold) 40%,transparent)}
+.box{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.fld{display:grid;grid-template-columns:90px 1fr 52px;align-items:center;gap:8px;font-size:12.5px}
+.fld output{font:600 12px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.fld2{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:8px;font-size:12.5px}
+input[type=range]{width:100%;accent-color:var(--sea)}
+input[type=text],input[type=number],select.in,textarea{border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:5px 8px;font-size:13px;width:100%;min-width:0}
+input[type=color]{width:34px;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:1px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 10px;font-weight:600;font-size:13px}
+.btn.pri{background:var(--sea);border-color:var(--sea);color:#fff}.btn.ok{background:var(--done);border-color:var(--done);color:#fff}
+.btn.sm{padding:3px 8px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:default}
+pre{margin:0;white-space:pre-wrap;word-break:break-word;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.5 var(--mono);max-height:300px;overflow:auto}
+textarea{min-height:54px;resize:vertical}
+.status{font-size:12px;color:var(--mute);min-height:1.2em}.status.err,.hint.err{color:var(--warn)}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:0;width:min(980px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
+dialog::backdrop{background:rgba(5,12,18,.55)}
+.dlg{display:flex;flex-direction:column;max-height:calc(100vh - 34px)}
+.dlg header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.dlg header h2{font:600 20px var(--disp);margin:0}
+.dlg .body{overflow:auto;padding:14px 18px;display:flex;flex-direction:column;gap:20px}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{text-align:left;font-weight:600;color:var(--mute);padding:4px;white-space:nowrap}
+.tbl td{padding:3px 4px;vertical-align:middle}
+.tbl input[type=text]{padding:3px 6px}
+.tbl .w-code{width:64px}.tbl .w-h{width:64px}
+.sheet{display:flex;align-items:center;gap:6px;min-width:220px}
+.sheet .th{width:46px;height:34px;border-radius:6px;border:1px solid var(--line);background:var(--bg) center/contain no-repeat;flex:none;cursor:zoom-in}
+.sheet .th.none{cursor:default;display:grid;place-items:center;font-size:10px;color:var(--mute)}
+.sheet input[type=text]{flex:1;min-width:90px}
+.fig3d{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.fig3d .tag{font-size:11px;padding:2px 6px;border-radius:6px;background:var(--bg);border:1px solid var(--line);color:var(--mute)}
+.fig3d .tag.on{background:var(--sea);border-color:var(--sea);color:#fff}
+.sheets{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px}
+.sheets button{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:4px;display:flex;flex-direction:column;gap:3px;cursor:zoom-in;font-size:11px;color:var(--ink);text-align:left}
+.sheets img{width:100%;aspect-ratio:4/3;object-fit:contain;border-radius:5px;background:var(--panel)}
+.selimg{width:100%;max-height:150px;object-fit:contain;border-radius:8px;border:1px solid var(--line);background:var(--bg);cursor:zoom-in;margin-bottom:8px}
+#dlgImg{width:min(1200px,calc(100vw - 32px))}
+#dlgImg img{display:block;width:100%;max-height:calc(100vh - 140px);object-fit:contain;background:var(--bg)}
+@media (max-width:1050px){
+  .app{grid-template-columns:1fr;height:auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .list{border:0;max-height:260px;background:transparent}
+  main{padding:8px 0;overflow:visible}
+  .side{border:0;background:transparent;padding:8px 0 24px;overflow:visible}
+  .tbl{display:block;overflow-x:auto}
+}
+</style>
+
+<div class="app">
+  <aside class="list">
+    <div class="brand"><h1>Scenplanering</h1></div>
+    <div class="lf"><select id="proj" aria-label="Projekt"></select></div>
+    <div class="lf"><button class="btn sm" id="bNewProj" title="Skapa ett nytt, tomt projekt">+ Nytt projekt</button><button class="btn sm" id="bProj">Projekt…</button></div>
+    <div class="lf"><select id="flt" aria-label="Visa miljö"><option value="">Alla miljöer</option></select></div>
+    <div class="lf"><span class="hint" id="prog"></span></div>
+    <div id="shots"></div>
+    <div class="lf" style="padding-bottom:12px"><button class="btn sm" id="bAddShot">+ Nytt skott</button></div>
+  </aside>
+
+  <main>
+    <div class="hd"><h2 id="sid">Skott</h2><span class="meta" id="smeta"></span></div>
+    <p class="sv" id="ssv"></p>
+    <div class="bar">
+      <div class="seg" role="group" aria-label="Vy"><button id="vCam" aria-pressed="true">Kameravy</button><button id="vPlan" aria-pressed="false">Planvy</button></div>
+      <div class="seg" role="group" aria-label="Arbeta med"><button id="mShot" aria-pressed="true">Skott</button><button id="mSet" aria-pressed="false">Bygg miljö</button></div>
+      <select id="scSel" class="btn" aria-label="Miljö för skottet" style="font-weight:600"></select>
+    </div>
+    <div class="vpw" id="vpw">
+      <canvas id="cv"></canvas>
+      <div class="thirds" id="thirds"></div>
+      <div id="labels"></div>
+      <div class="vtag" id="vtag"></div>
+      <div class="warn" id="warn" hidden></div>
+      <div class="empty" id="empty" hidden><b style="font:600 20px var(--disp)">Inget projekt än</b><span>Skapa ett projekt med roller, miljöer och skott – eller importera en projektfil.</span><button class="btn pri" id="bFirst">Skapa projekt</button></div>
+    </div>
+    <p class="hint" id="help"></p>
+  </main>
+
+  <aside class="side" id="sideShot">
+    <section><h3>Med i skottet</h3><div class="chips" id="cast"></div></section>
+    <section id="sheetSec" hidden><h3>Sheets i skottet</h3><div class="sheets" id="sheets"></div></section>
+    <section><h3>Lägg till roll</h3><div id="pal"></div></section>
+    <section class="box" id="selBox" hidden>
+      <h3 id="selName">Vald</h3>
+      <img class="selimg" id="selImg" alt="" hidden>
+      <div class="fld"><label for="rRot">Riktning</label><input type="range" id="rRot" min="0" max="355" step="5"><output id="oRot"></output></div>
+      <div class="row"><button class="btn sm" data-turn="-45" title="Vrid 45° åt vänster">↺ 45°</button><button class="btn sm" data-turn="45" title="Vrid 45° åt höger">↻ 45°</button><button class="btn sm" data-turn="180">Vänd om</button><button class="btn sm" data-turn="cam">Mot kameran</button></div>
+      <div class="fld"><label for="rY">Höjd</label><input type="range" id="rY" min="-10" max="12" step="0.05"><output id="oY"></output></div>
+      <div class="row"><button class="btn" id="bHide">Dölj i skottet</button><button class="btn" id="bDel">Ta bort</button></div>
+    </section>
+    <section class="box">
+      <h3>Kamera</h3>
+      <div class="fld"><label for="rMM">Objektiv</label><input type="range" id="rMM" min="14" max="135" step="1"><output id="oMM"></output></div>
+      <div class="fld"><label for="rCH">Kamerahöjd</label><input type="range" id="rCH" min="-9" max="40" step="0.1"><output id="oCH"></output></div>
+      <div class="row"><button class="btn" id="bLevel">Rak horisont</button><button class="btn" id="bPrevCam">Förra skottets kamera</button></div>
+    </section>
+    <section>
+      <h3>Till Higgsfield</h3>
+      <div class="seg" role="group" aria-label="Text för" style="margin-bottom:8px"><button id="oVid" aria-pressed="true">Video (Seedance)</button><button id="oImg" aria-pressed="false">Startbild</button></div>
+      <pre id="out"></pre>
+      <div class="row" style="margin-top:8px"><button class="btn pri" id="bCopy">Kopiera text</button><button class="btn" id="bPng">Spara layoutbild</button><button class="btn" id="bAll">Spara alla bilder…</button></div>
+      <p class="hint" id="outHint" style="margin-top:6px"></p>
+    </section>
+    <section><h3>Anteckning</h3><textarea id="note" placeholder="T.ex. ”Fiskaren tittar ut mot arbetsbåten”"></textarea></section>
+    <section class="row"><button class="btn" id="bPush">Placeringen till kommande skott</button><button class="btn" id="bReset">Börja om skottet</button></section>
+    <section class="row"><button class="btn" id="bPrev">← Förra</button><button class="btn ok" id="bDone">Klar → nästa</button></section>
+    <div class="status" id="status"></div>
+  </aside>
+
+  <aside class="side" id="sideSet" hidden>
+    <section><h3>Miljön</h3><p class="hint" id="setInfo"></p></section>
+    <section><h3>Lägg till i miljön</h3><div class="chips" id="ppal"></div></section>
+    <section class="box" id="pBox" hidden>
+      <h3 id="pName">Vald del</h3>
+      <div class="fld2"><label for="pEn">Namn till prompten</label><input type="text" id="pEn" placeholder="engelska, t.ex. the red boathouse"></div>
+      <div class="fld"><label for="pRot">Riktning</label><input type="range" id="pRot" min="0" max="355" step="5"><output id="opRot"></output></div>
+      <div class="row"><button class="btn sm" data-turn="-45">↺ 45°</button><button class="btn sm" data-turn="45">↻ 45°</button><button class="btn sm" data-turn="180">Vänd om</button><button class="btn sm" data-turn="cam">Mot kameran</button></div>
+      <div class="fld"><label for="pS">Storlek</label><input type="range" id="pS" min="0.2" max="6" step="0.05"><output id="opS"></output></div>
+      <div class="fld2"><label for="pC">Färg</label><input type="color" id="pC"></div>
+      <div class="row"><button class="btn" id="pDel">Ta bort</button><button class="btn" id="pDup">Kopiera</button></div>
+    </section>
+    <p class="hint">Allt du bygger här gäller alla skott i den här miljön. Namnen hamnar i bakgrundsraden när delen syns i bild.</p>
+    <div class="status" id="status2"></div>
+  </aside>
+</div>
+
+<dialog id="dlgNew" style="width:min(460px,calc(100vw - 32px))"><form method="dialog" class="dlg" id="nForm">
+  <header><h2>Nytt projekt</h2></header>
+  <div class="body" style="gap:12px">
+    <div class="fld2" style="grid-template-columns:1fr"><label for="nName">Vad ska projektet heta?</label><input type="text" id="nName" placeholder="t.ex. Min kortfilm" autocomplete="off"></div>
+    <p class="hint" id="nInfo">Namnet blir också filnamnet. Det går att byta senare under Projekt….</p>
+    <div class="row"><button class="btn pri" id="nOk" value="ok">Skapa projektet</button><button class="btn" id="nCancel" value="cancel" type="button">Avbryt</button></div>
+  </div>
+</form></dialog>
+<dialog id="dlgAll" style="width:min(520px,calc(100vw - 32px))"><div class="dlg">
+  <header><h2>Spara alla layoutbilder</h2></header>
+  <div class="body" style="gap:12px">
+    <p class="hint">En bild per skott, med samma kamera och placeringar som du planerat – att bifoga som @Image1 i Higgsfield. Texterna kan följa med som en fil per skott.</p>
+    <div id="aWhich" style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+      <label><input type="radio" name="aw" value="plan" checked> Planerade skott <span class="hint" id="aNplan"></span></label>
+      <label><input type="radio" name="aw" value="done"> Bara skott markerade som klara <span class="hint" id="aNdone"></span></label>
+      <label><input type="radio" name="aw" value="all"> Alla skott i projektet <span class="hint" id="aNall"></span></label>
+    </div>
+    <label style="font-size:13px"><input type="checkbox" id="aTxt" checked> Ta med texterna till Higgsfield (video och startbild)</label>
+    <div style="height:6px;border-radius:3px;background:var(--line);overflow:hidden"><div id="aBar" style="height:100%;width:0;background:var(--sea)"></div></div>
+    <p class="hint" id="aInfo"></p>
+    <div class="row"><button class="btn pri" id="aGo">Spara</button><button class="btn" id="aClose">Stäng</button></div>
+  </div>
+</div></dialog>
+<dialog id="dlgImg"><div class="dlg">
+  <header><h2 id="iTitle">Sheet</h2><button class="btn" id="iClose">Stäng</button></header>
+  <img id="iImg" alt="">
+</div></dialog>
+<input type="file" id="imgPick" accept="image/*" hidden>
+<input type="file" id="figPick" hidden>
+<dialog id="dlg"><div class="dlg">
+  <header><h2>Projekt</h2><button class="btn" id="dClose">Stäng</button></header>
+  <div class="body">
+    <section class="row">
+      <div class="fld2" style="flex:1;min-width:260px"><label for="dName">Projektnamn</label><input type="text" id="dName"></div>
+      <button class="btn" id="dNew">Nytt projekt</button>
+      <button class="btn" id="dExport">Exportera</button>
+      <label class="btn" style="cursor:pointer">Importera<input type="file" id="dImport" accept=".json,application/json" hidden></label>
+      <button class="btn" id="dDelProj">Radera projektet</button>
+    </section>
+    <section>
+      <h3>Alla projekt</h3>
+      <p class="hint" style="margin-bottom:6px"><b>Rensa</b> tar bort alla placeringar och kameror i skotten men behåller roller, miljöer och skottlista. <b>Radera</b> tar bort hela projektet.</p>
+      <table class="tbl"><thead><tr><th>Projekt</th><th>Skott</th><th>Placerade</th><th></th></tr></thead><tbody id="dProjList"></tbody></table>
+    </section>
+    <section class="row" id="dFolderRow" hidden>
+      <span class="hint">Projekten sparas som filer i <b id="dFolder"></b></span>
+      <button class="btn sm" id="dShowFolder">Visa i Finder</button>
+      <button class="btn sm" id="dPickFolder">Byt mapp…</button>
+    </section>
+    <section>
+      <h3>Roller – karaktärer, djur, fordon och props</h3>
+      <p class="hint" style="margin-bottom:6px">Koden är det korta namnet som syns på figuren. Den engelska beskrivningen går in i prompten. Under <b>Sheet</b> lägger du till karaktärens eller propens sheet (Bild…). Under <b>I 3D-scenen</b> kan rollen få din egen figur från Higgsfield i stället för den enkla klossen: en <b>3D-modell</b> (.glb, gjord med Image to 3D från sheeten) eller en <b>urklippt bild</b> (.png med bakgrunden borttagen) som står upp i miljön. Filnamnet bredvid är det texten använder för att säga vilken @Image som är vem – ladda upp samma bild i Higgsfield.</p>
+      <table class="tbl"><thead><tr><th>Kod</th><th>Namn</th><th>Engelska till prompten</th><th>Typ</th><th>Höjd m</th><th>Färg</th><th>Sheet</th><th>I 3D-scenen</th><th></th></tr></thead><tbody id="dCast"></tbody></table>
+      <button class="btn sm" id="dAddCast" style="margin-top:6px">+ Roll</button>
+    </section>
+    <section>
+      <h3>Miljöer</h3>
+      <p class="hint" style="margin-bottom:6px">Lägg till miljöns sheet (location sheet) så kommer den med i texten för alla skott i miljön.</p>
+      <table class="tbl"><thead><tr><th>Nyckel</th><th>Namn</th><th>Grund</th><th>Sheet</th><th></th></tr></thead><tbody id="dSets"></tbody></table>
+      <button class="btn sm" id="dAddSet" style="margin-top:6px">+ Miljö</button>
+    </section>
+    <section>
+      <h3>Skott</h3>
+      <p class="hint" style="margin-bottom:6px">En rad per skott: <code>id | beskrivning | miljönyckel | koder | ljus</code>. Koder skrivs med komma, t.ex. <code>F, RB</code>. Befintliga placeringar behålls när id:t finns kvar.</p>
+      <textarea id="dShots" rows="8" style="font:12px/1.5 var(--mono)"></textarea>
+      <div class="row" style="margin-top:6px"><button class="btn pri" id="dApplyShots">Uppdatera skottlistan</button><span class="hint" id="dShotsInfo"></span></div>
+    </section>
+    <section>
+      <h3>Stil och ljus till startbildsprompten</h3>
+      <textarea id="dStyle" rows="4" placeholder="T.ex. Stylized 3D animated family film look, never photorealistic…"></textarea>
+    </section>
+  </div>
+</div></dialog>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script src="lib/GLTFLoader.js"></script>
+<script>window.SEED=null;</script>
+<script>
+const $ = id => document.getElementById(id);
+// I Mac-programmet sparas varje projekt som en fil (<projekt>.scen.json) via en brygga till Swift.
+const NATIVE = !!window.webkit?.messageHandlers?.app;
+let callN = 0; const calls = {};
+window.__appReply = (id, res) => { const c = calls[id]; delete calls[id]; if (c) res.e ? c.no(new Error(res.e)) : c.ok(res.r); };
+const native = (op, args) => new Promise((ok, no) => { const id = ++callN; calls[id] = {ok, no}; window.webkit.messageHandlers.app.postMessage({id, op, ...(args||{})}); });
+const T = THREE;
+const clone = o => JSON.parse(JSON.stringify(o));
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const slug = s => (s||'projekt').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40) || 'projekt';
+const uid = () => Math.random().toString(36).slice(2,8);
+// ---------- sheets (bilder) ----------
+// En bild sparas som en sträng i d.img: 'lokal:<sökväg>' (Mac-programmet), 32 hex (claude.ai-lagringen) eller en data:-adress (annars).
+let assets = null;
+const imgSrc = v => !v ? '' : /^[0-9a-f]{32}$/.test(v) ? '/_blob/' + v : v.startsWith('lokal:') ? 'bild://lokal/' + v.slice(6) : v;
+const toB64 = blob => new Promise(ok => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.readAsDataURL(blob); });
+function shrink(blob, max){
+  return new Promise((ok, no) => { const im = new Image(), u = URL.createObjectURL(blob);
+    im.onload = () => { const k = Math.min(1, max / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.round(im.width*k); c.height = Math.round(im.height*k);
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u); ok(c.toDataURL('image/jpeg', 0.85)); };
+    im.onerror = () => { URL.revokeObjectURL(u); no(new Error('Bilden kunde inte läsas.')); }; im.src = u; });
+}
+async function putImage(blob, name){
+  if (NATIVE){ const m = (name||'bild').match(/^(.*?)(?:\.([a-z0-9]{2,5}))?$/i); return 'lokal:' + await native('writeImage', {name:m[1] || 'bild', ext:(m[2] || 'jpg').toLowerCase(), b64:await toB64(blob)}); }
+  if (assets){ try { return (await assets.upload(blob, {type:blob.type || 'image/png'})).id; } catch {} }
+  return shrink(blob, 1400);
+}
+// Gör om bilder i en exporterad fil till data:-adresser så att filen fungerar på andra datorer.
+async function embedImages(project){
+  const out = JSON.parse(JSON.stringify(project));
+  for (const d of Object.values(out.cast||{})) for (const f of ['model','cut']){
+    if (!d[f] || d[f].startsWith('data:')) continue;
+    try { d[f] = await new Promise(async ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(await figBlob(d[f])); }); } catch { delete d[f]; }
+  }
+  for (const d of [...Object.values(out.cast||{}), ...Object.values(out.sets||{})]){
+    if (!d.img || d.img.startsWith('data:')) continue;
+    if (NATIVE && d.img.startsWith('lokal:')){ try { d.img = await native('readImage', {path:d.img.slice(6)}); } catch { delete d.img; } continue; }
+    try { const b = await (await fetch(imgSrc(d.img))).blob(); d.img = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(b); }); } catch { delete d.img; }
+  }
+  return out;
+}
+// Och tillbaka: data:-adresser från en importerad fil sparas som riktiga bilder där det går.
+async function storeEmbedded(project){
+  for (const d of Object.values(project.cast||{})) for (const f of ['model','cut']){
+    if (!d[f]?.startsWith('data:')) continue;
+    if (!NATIVE && (f === 'cut' || !assets)) { if (f === 'model'){ const key = 'sess:' + uid(); figSession[key] = await (await fetch(d[f])).blob(); d[f] = key; } continue; }
+    try { d[f] = await putFig(await (await fetch(d[f])).blob(), (d.ref || 'figur').replace(/\.[^.]+$/, '') + (f === 'model' ? '.glb' : '_urklipp.png'), f); } catch {}
+  }
+  if (!NATIVE && !assets) return;
+  for (const d of [...Object.values(project.cast||{}), ...Object.values(project.sets||{})]){
+    if (!d.img?.startsWith('data:')) continue;
+    try { d.img = await putImage(await (await fetch(d.img)).blob(), d.ref || 'sheet.jpg'); } catch {}
+  }
+}
+// ---------- egna figurer i 3D: modell (.glb) eller urklippt bild ----------
+// d.model och d.cut lagras som d.img: 'lokal:<sökväg>', 32 hex (claude.ai) eller data:-adress.
+const figSession = {};   // webbversionen utan lagring: modellen finns bara i den här fliken
+async function putFig(blob, name, kind){
+  if (NATIVE){ const m = (name||'figur').match(/^(.*?)(?:\.([a-z0-9]{2,5}))?$/i); return 'lokal:' + await native('writeImage', {name:m[1] || 'figur', ext:(m[2] || (kind==='model' ? 'glb' : 'png')).toLowerCase(), b64:await toB64(blob)}); }
+  if (assets?.upload && kind !== 'model'){ try { return (await assets.upload(blob, {type:blob.type || 'image/png'})).id; } catch {} }
+  if (kind === 'cut') return pngSmall(blob, 900);
+  const key = 'sess:' + uid(); figSession[key] = blob; return key;
+}
+function pngSmall(blob, max){
+  return new Promise((ok, no) => { const im = new Image(), u = URL.createObjectURL(blob);
+    im.onload = () => { const k = Math.min(1, max / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.round(im.width*k); c.height = Math.round(im.height*k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u); ok(c.toDataURL('image/png')); };
+    im.onerror = () => { URL.revokeObjectURL(u); no(new Error('Bilden kunde inte läsas.')); }; im.src = u; });
+}
+async function figBlob(ref){
+  if (ref.startsWith('sess:')){ if (figSession[ref]) return figSession[ref]; throw new Error('Modellen finns bara i fliken där den lades till.'); }
+  if (NATIVE && ref.startsWith('lokal:')) return (await fetch(await native('readImage', {path:ref.slice(6)}))).blob();
+  return (await fetch(imgSrc(ref))).blob();
+}
+const figCache = {};      // ref → {st:'load'|'ok'|'err', obj|tex, box}
+let figT = null;
+function figGet(ref, kind){
+  const c = figCache[ref]; if (c) return c;
+  const e = figCache[ref] = {st:'load'};
+  figBlob(ref).then(async b => {
+    if (kind === 'model'){
+      const buf = await b.arrayBuffer();
+      await new Promise((ok, no) => new T.GLTFLoader().parse(buf, '', g => { e.obj = g.scene; ok(); }, err => no(err)));
+      e.obj.updateMatrixWorld(true); e.box = new T.Box3().setFromObject(e.obj);
+    } else {
+      const u = URL.createObjectURL(b); const im = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = u; });
+      e.tex = new T.Texture(im); e.tex.needsUpdate = true; e.tex.encoding = T.sRGBEncoding; e.aspect = im.width / im.height;
+    }
+    e.st = 'ok';
+  }).catch(err => { e.st = 'err'; e.msg = String(err?.message || err); status('En figur kunde inte läsas in: ' + e.msg, true); })
+    .finally(() => { clearTimeout(figT); figT = setTimeout(() => { syncActors(); if ($('dlg').open) fillDlg(); }, 30); });
+  return e;
+}
+const LONG = ['rb','wb','wbx','car'];
+// Bygger rollens egen figur om den finns och är inläst; annars null (då ritas den enkla figuren).
+function mkFig(d){
+  const H = +d.h || KINDS[d.k]?.h || 1;
+  if (d.model){
+    const e = figGet(d.model, 'model');
+    if (e.st === 'ok'){
+      const g = new T.Group(), o = e.obj.clone(true), sz = e.box.getSize(new T.Vector3()), ct = e.box.getCenter(new T.Vector3());
+      o.traverse(m => { if (m.isMesh) m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone(); });
+      const k = LONG.includes(d.k) ? H / Math.max(sz.x, sz.z, 1e-6) : H / Math.max(sz.y, 1e-6);
+      const inner = new T.Group(); inner.rotation.y = (d.mr||0) * Math.PI/180; o.scale.setScalar(k); o.position.set(-ct.x*k, -e.box.min.y*k, -ct.z*k); inner.add(o); g.add(inner);
+      return g;
+    }
+  }
+  if (d.cut){
+    const e = figGet(d.cut, 'cut');
+    if (e.st === 'ok'){
+      const g = new T.Group();
+      const w = LONG.includes(d.k) ? H : H * e.aspect, h = LONG.includes(d.k) ? H / e.aspect : H;
+      const bb = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({map:e.tex, transparent:true, alphaTest:0.04, side:T.DoubleSide}));
+      bb.position.y = h/2; bb.userData.h = h; bb.rotation.order = 'YXZ'; g.add(bb); g.userData.bb = bb;
+      const arrow = new T.Mesh(new T.ConeGeometry(Math.max(0.06, w*0.08), Math.max(0.15, w*0.22), 10), new T.MeshBasicMaterial({color:0xD2683E}));
+      arrow.rotation.x = Math.PI/2; arrow.position.set(0, 0.02, Math.max(0.25, w*0.45)); g.add(arrow);
+      return g;
+    }
+  }
+  return null;
+}
+// Urklippta bilder vänds alltid mot kameran (i planvyn ligger de platt); den orange pilen på marken visar vart rollen tittar.
+function faceBillboards(cam){
+  const flat = view === 'plan' && cam !== shotCam;
+  actorsG.children.forEach(g => { const bb = g.userData.bb; if (!bb) return; bb.rotation.x = flat ? -Math.PI/2 : 0; bb.position.y = flat ? 0.03 : bb.userData.h/2; bb.rotation.y = flat ? 0 : Math.atan2(cam.position.x - g.position.x, cam.position.z - g.position.z) - g.rotation.y; });
+}
+let figFor = null;
+function pickFig(kind, fn){ figFor = {kind, fn}; const i = $('figPick'); i.accept = kind === 'model' ? '.glb,.gltf,model/gltf-binary' : 'image/png,image/webp,image/*'; i.value = ''; i.click(); }
+let pickFor = null;
+function pickImage(fn){ pickFor = fn; $('imgPick').value = ''; $('imgPick').click(); }
+function showImage(src, title){ $('iImg').src = src; $('iTitle').textContent = title || 'Sheet'; $('dlgImg').showModal(); }
+
+// ---------- rolltyper ----------
+const KINDS = {
+  h:{sv:'Människa', h:1.8}, q:{sv:'Fyrbent djur', h:0.6}, f:{sv:'Fisk', h:0.4}, g:{sv:'Fågel', h:0.35},
+  rb:{sv:'Liten båt', h:4}, wb:{sv:'Stor båt', h:15}, wbx:{sv:'Kantrad båt', h:15}, car:{sv:'Bil', h:4.2},
+  rod:{sv:'Spö/stav', h:2}, lure:{sv:'Drag', h:0.28}, small:{sv:'Litet föremål', h:0.15}, bucket:{sv:'Hink', h:0.3},
+  coil:{sv:'Rep/nät', h:0.4}, crate:{sv:'Låda/föremål', h:0.6},
+};
+const VEH = ['rb','wb','wbx','car'], LIVE = ['h','q','f','g'];
+const kcol = k => k==='h' ? '#D2683E' : 'qfg'.includes(k) ? '#2C8C93' : VEH.includes(k) ? '#B8432F' : '#6E5BB0';
+const GRP = [['Karaktärer',k=>k==='h'],['Djur',k=>'qfg'.includes(k)],['Fordon',k=>VEH.includes(k)],['Props',k=>!LIVE.includes(k) && !VEH.includes(k)]];
+
+// ---------- 3D-hjälp ----------
+function mat(c, o){ return new T.MeshLambertMaterial(Object.assign({color:c}, o||{})); }
+function add(g, geo, c, x, y, z, o){ const m = new T.Mesh(geo, mat(c, o)); m.position.set(x,y,z); g.add(m); return m; }
+const box = (w,h,d) => new T.BoxGeometry(w,h,d);
+const cyl = (a,b,h,s) => new T.CylinderGeometry(a,b,h,s||16);
+function house(g, x, z, w, d, c, rot){
+  const h = new T.Group(); add(h, box(w,2.6,d), c, 0,1.3,0); const r = add(h, new T.ConeGeometry(Math.max(w,d)*0.62,1.6,4), '#4A3A34', 0,3.4,0); r.rotation.y = Math.PI/4; r.scale.z = d/w;
+  add(h, box(w*0.18,1.2,0.05), '#F2EDE2', 0,0.9,d/2+0.03); h.position.set(x,0,z); h.rotation.y = rot||0; g.add(h); return h;
+}
+function rock(g, x, y, z, r, c){ const m = add(g, new T.DodecahedronGeometry(r,0), c||'#B49A94', x,y,z); m.scale.y = 0.6; return m; }
+function pine(g, x, z, s){ add(g, cyl(0.12*s,0.18*s,1.2*s,6), '#5A4030', x,0.6*s,z); add(g, new T.ConeGeometry(1.1*s,3.2*s,7), '#2F5238', x,2.6*s,z); }
+function sea(g, y, c){ add(g, new T.PlaneGeometry(1600,1600), c||'#3F8FA8', 0,y,0).rotation.x = -Math.PI/2; }
+function ground(g, y, c, n){ add(g, new T.PlaneGeometry(n||800,n||800), c, 0,y,0).rotation.x = -Math.PI/2; }
+
+// ---------- miljögrunder ----------
+const BASES = {
+  tom:{sv:'Tom studio', sky:'#C9CDD0', fog:[80,500], ground:0, water:0, depth:[4,14], cam:{p:[0,1.6,9], t:[0,1.2,0], mm:35}, plan:{p:[0,30,22], t:[0,0,0]}, lm:[],
+    build(g){ ground(g,0,'#A8ADB0'); const gr = new T.GridHelper(60,60,0x7d8488,0x8f979b); gr.position.y = 0.01; g.add(gr); }},
+  mark:{sv:'Gräsmark', sky:'#BFDCEE', fog:[80,600], ground:0, water:0, depth:[5,20], cam:{p:[0,1.6,12], t:[0,1.2,0], mm:35}, plan:{p:[0,50,35], t:[0,0,0]}, lm:[{en:'the open meadow', p:[0,0,-60]}],
+    build(g){ ground(g,0,'#8B9A6A'); }},
+  skog:{sv:'Skog', sky:'#BFD8E2', fog:[30,220], ground:0, water:0, depth:[5,18], cam:{p:[0,1.6,10], t:[0,1.3,0], mm:35}, plan:{p:[0,45,30], t:[0,0,0]}, lm:[{en:'the forest of tall pines', p:[0,4,-25]}],
+    build(g){ ground(g,0,'#6F7F52'); for (let i=0;i<70;i++){ const a=i*2.39, r=9+((i*37)%60); pine(g, Math.cos(a)*r, Math.sin(a)*r, 1+((i*7)%5)*0.25); } }},
+  strand:{sv:'Strand', sky:'#BFDCEE', fog:[60,500], ground:0, water:-0.25, depth:[6,22], cam:{p:[0,1.6,16], t:[0,1,-8], mm:35}, plan:{p:[0,60,40], t:[0,0,-10]},
+    lm:[{en:'the sandy beach', p:[0,0,12]},{en:'the sea and the horizon', p:[0,0,-200]}],
+    build(g){ add(g, box(200,0.4,60), '#E3CF9F', 0,-0.2,30); sea(g,-0.25); }},
+  gata:{sv:'Gata', sky:'#C7D9E4', fog:[60,400], ground:0, water:0, depth:[5,20], cam:{p:[0,1.6,14], t:[0,1.4,0], mm:35}, plan:{p:[0,55,35], t:[0,0,0]},
+    lm:[{en:'the street', p:[0,0,-30]},{en:'the houses along the street', p:[-9,3,-10]},{en:'the houses along the street', p:[9,3,-10]}],
+    build(g){ ground(g,0,'#A49A8C'); add(g, box(8,0.04,300), '#5E6266', 0,0.02,0); for (const s of [-1,1]) { add(g, box(2,0.18,300), '#B8B2A8', s*5,0.09,0); for (let z=-60;z<=60;z+=8) house(g, s*10, z, 6, 7, ['#B23A2A','#D2A03C','#E9E2D2','#7C9AB0'][((z/8)+8+(s>0?1:0))&3], s>0?-Math.PI/2:Math.PI/2); } }},
+  rum:{sv:'Rum inomhus', sky:'#E8E2D6', fog:[30,200], ground:0, water:0, depth:[1.5,4], bird:2, cam:{p:[0,1.6,2.6], t:[0,1.3,-1.5], mm:24}, plan:{p:[0,10,6], t:[0,0,0]},
+    lm:[{en:'the back wall', p:[0,1.5,-3]},{en:'the window', p:[2.2,1.5,-2.95]},{en:'the door', p:[-3.95,1,0.5]}],
+    build(g){ add(g, box(8,0.05,6), '#9A7B5C', 0,0,0); add(g, box(8,2.8,0.08), '#E9E1CF', 0,1.4,-3); add(g, box(0.08,2.8,6), '#E3DAC6', -4,1.4,0); add(g, box(0.08,2.8,6), '#E3DAC6', 4,1.4,0);
+      add(g, box(1.4,1.1,0.04), '#9CCBE0', 2.2,1.55,-2.94); add(g, box(0.04,2,0.95), '#8A6A48', -3.94,1,0.5); }},
+  hamn:{sv:'Hamn med kaj och fyr', sky:'#BFDCEE', fog:[60,420], ground:0, water:-0.25, depth:[6,22],
+    cam:{p:[0,1.6,18], t:[-2,1.2,-10], mm:35}, plan:{p:[10,70,40], t:[0,0,-15]},
+    lm:[{en:'the lighthouse on its rocky hill', p:[-46,10,-58]},{en:'the red and ochre boathouses', p:[-28,2,-24]},{en:'the long wooden quay', p:[10,0.5,-14]},{en:'the far skerry with red houses', p:[95,2,-135]},{en:'the low stone wall along the waterline', p:[5,0.3,0]},{en:'the open sea beyond the harbor', p:[25,0,-260]},{en:'the sandy beach', p:[0,0,14]}],
+    build(g){
+      add(g, box(160,0.4,40), '#E3CF9F', 0,-0.2,20); sea(g,-0.25);
+      add(g, box(120,0.7,1.2), '#B7A39C', 0,0.1,0.2);
+      add(g, box(50,0.5,3), '#8A6A48', 12,0.35,-14); for (let x=-12;x<=36;x+=4) add(g, cyl(0.15,0.15,2.2,6), '#5C4630', x,-0.4,-12.6);
+      house(g,-36,-24,6,5,'#B23A2A'); house(g,-28.5,-24,6,5,'#D2A03C'); house(g,-21,-24,6,5,'#B23A2A'); house(g,-14,-25,5,5,'#E9E2D2');
+      const hill = add(g, new T.ConeGeometry(16,10,9), '#B49A94', -46,4.7,-58); hill.scale.z = 0.8;
+      add(g, cyl(1.1,1.4,8,14), '#F4F1EA', -46,13.5,-58); add(g, cyl(1.3,1.3,1.4,14), '#C23A2A', -46,18.2,-58); add(g, new T.ConeGeometry(1.4,1.2,14), '#3A3A3A', -46,19.5,-58);
+      pine(g,-56,-52,1.3); pine(g,-38,-50,1); pine(g,-52,-63,1.2);
+      rock(g,95,0,-135,9); house(g,92,-133,4,4,'#B23A2A'); house(g,99,-137,3.5,3.5,'#B23A2A');
+      for (let i=0;i<14;i++) rock(g, -60+i*9, 0, 2+((i*7)%5), 0.6+((i*3)%4)*0.15, '#A89089');
+    }},
+  hav:{sv:'Öppet hav', sky:'#BFDCEE', fog:[120,700], ground:0, water:0, depth:[10,45],
+    cam:{p:[0,2,14], t:[0,0.8,0], mm:35}, plan:{p:[0,90,60], t:[0,0,0]},
+    lm:[{en:'distant skerries on the horizon', p:[-160,3,-320]},{en:'a low rocky islet', p:[220,3,-180]},{en:'the open horizon', p:[0,0,-500]},{en:'open water toward the coast', p:[0,0,500]}],
+    build(g){ sea(g,0,'#2F7D9A'); rock(g,-160,0,-320,22); rock(g,-120,0,-330,12); rock(g,220,0,-180,16); house(g,214,-178,5,5,'#B23A2A'); }},
+  under:{sv:'Under vattnet', sky:'#2C7F86', fog:[4,38], fogc:'#2D8A8E', ground:-8, water:-6, uw:true, depth:[2.5,8],
+    cam:{p:[0,-6,8], t:[0,-6.2,0], mm:28}, plan:{p:[0,12,14], t:[0,-8,-2]},
+    lm:[{en:'the seagrass and red algae hideout', p:[-6,-7,-6]},{en:'the big boulders', p:[8,-7,-5]},{en:'the open sandy seabed', p:[0,-8,-24]},{en:'the purple sea urchins', p:[3,-7.8,2]},{en:'the bright surface above', p:[0,0,-6]}],
+    build(g){
+      ground(g,-8,'#C9B78A',400);
+      const s = add(g, new T.PlaneGeometry(400,400), '#7FD3D0', 0,0,0, {transparent:true, opacity:0.35, side:T.DoubleSide}); s.rotation.x = -Math.PI/2;
+      for (let i=0;i<46;i++){ const a=i*2.39, r=1+((i*13)%30)/10; add(g, new T.ConeGeometry(0.08,1.2+((i*7)%10)/8,4), i%4?'#4E9A4A':'#C9443A', -6+Math.cos(a)*r, -7.4, -6+Math.sin(a)*r*0.7); }
+      rock(g,8,-7.2,-5,2.4,'#7E8A8C'); rock(g,10.5,-7.4,-2.5,1.5,'#6E7A7C'); rock(g,-12,-7.4,-14,2,'#7E8A8C');
+      for (let i=0;i<6;i++) add(g, new T.SphereGeometry(0.18,8,6), '#6A3E8E', 3+i*0.6, -7.85, 2+((i*5)%3)*0.5);
+    }},
+  dack:{sv:'Båtdäck med styrhytt', sky:'#BFDCEE', fog:[60,600], ground:0, water:0, depth:[3,9], bird:3,
+    cam:{p:[-6,1.7,1.4], t:[4,1.3,0], mm:32}, plan:{p:[0,26,14], t:[0,0,0]},
+    lm:[{en:'the white two-level wheelhouse', p:[2,2.2,0]},{en:'the yellow crane and winch at the stern', p:[-6.3,1.6,0]},{en:'the bow', p:[7.3,0.8,0]},{en:'the railing and the open sea beyond', p:[0,1,-2.6]},{en:'the railing and the open sea beyond', p:[0,1,2.6]}],
+    build(g){
+      sea(g,-1.4,'#2F7D9A'); add(g, box(15,1.4,5), '#8E9AA0', 0,-0.75,0); add(g, box(15.1,0.25,5.1), '#B33A2E', 0,-0.95,0);
+      add(g, box(15,0.06,4.8), '#C9CED0', 0,0.0,0);
+      for (const z of [-2.45,2.45]){ add(g, box(15,0.08,0.06), '#C99A3E', 0,1.0,z); for (let x=-7;x<=7;x+=1.4) add(g, cyl(0.03,0.03,1,6), '#C99A3E', x,0.5,z); }
+      add(g, box(4,2.4,3.6), '#F1EEE6', 2,1.2,0); add(g, box(3,1.3,3), '#F1EEE6', 2.3,3.05,0); add(g, box(0.05,0.8,2.6), '#5E8EA6', 4.03,1.7,0);
+      add(g, new T.TorusGeometry(0.35,0.08,8,18), '#E55A2E', 2,1.6,1.82); add(g, new T.TorusGeometry(0.35,0.08,8,18), '#E55A2E', 2,1.6,-1.82);
+      add(g, box(1,0.9,1), '#E0B02E', -6.3,0.45,0); add(g, box(0.25,2.6,0.25), '#E0B02E', -6.3,1.6,0).rotation.z = 0.6;
+      for (const x of [-4,0,4]) for (const z of [-2.55,2.55]) add(g, cyl(0.18,0.18,0.6,10), '#F2F2F2', x,-0.6,z);
+    }},
+  styrhytt:{sv:'Styrhytt inifrån', sky:'#BFDCEE', fog:[30,400], ground:0, water:0, depth:[1.2,2.6], bird:1.8,
+    cam:{p:[0,1.6,1.3], t:[0,1.25,-1.5], mm:24}, plan:{p:[0,7,3.5], t:[0,0,0]},
+    lm:[{en:'the front windows looking out over the bow', p:[0,1.75,-1.5]},{en:'the wooden wheel with the brass hub', p:[0,1.1,-1.05]},{en:'the instrument panel with green radar screens', p:[-1.1,1.15,-1.2]},{en:'the lever panel', p:[1.1,1.05,-1.2]},{en:'the door to the deck', p:[0,1,1.5]}],
+    build(g){
+      sea(g,-2.4,'#2F7D9A'); add(g, box(4,0.05,3), '#7A6656', 0,0,0);
+      add(g, box(4,2.4,0.06), '#F1EEE6', 0,1.2,1.5); add(g, box(0.06,2.4,3), '#F1EEE6', -2,1.2,0); add(g, box(0.06,2.4,3), '#F1EEE6', 2,1.2,0);
+      add(g, box(4,1.05,0.06), '#F1EEE6', 0,0.52,-1.5); add(g, box(4,1.1,0.03), '#8CC4D8', 0,1.6,-1.5, {transparent:true, opacity:0.35}); add(g, box(4,0.25,0.06), '#F1EEE6', 0,2.28,-1.5);
+      add(g, box(3.8,0.9,0.5), '#5A6670', 0,0.45,-1.2); add(g, box(0.8,0.4,0.05), '#3FAF6A', -1.1,1.15,-1.2); add(g, box(0.6,0.3,0.05), '#3FAF6A', -0.3,1.1,-1.2);
+      add(g, new T.TorusGeometry(0.34,0.04,8,20), '#8A5A32', 0,1.15,-1.05).rotation.x = -0.4; add(g, box(0.6,0.12,0.25), '#C99A3E', 1.1,0.98,-1.15);
+      add(g, box(0.9,2,0.04), '#B9B2A4', 0,1,1.47);
+      add(g, box(15,1.4,5), '#8E9AA0', 0,-0.75,2); add(g, box(15,0.06,5), '#C9CED0', 0,-0.02,6);
+    }},
+  eka:{sv:'Roddbåt inifrån', sky:'#BFDCEE', fog:[60,600], ground:0.15, water:0, depth:[1,2.6], bird:2,
+    cam:{p:[0,1.15,1.7], t:[0,0.6,-1.6], mm:28}, plan:{p:[0,7,4], t:[0,0,0]},
+    lm:[{en:'the bow of the rowboat', p:[0,0.4,-2]},{en:'the stern of the rowboat', p:[0,0.4,2]},{en:'the open sea beyond the gunwale', p:[-40,0,0]},{en:'the open sea beyond the gunwale', p:[40,0,0]}],
+    build(g){
+      sea(g,0,'#2F7D9A'); add(g, box(1.3,0.05,3.8), '#9A6E44', 0,0.12,0);
+      for (const s of [-1,1]) add(g, box(0.06,0.55,3.9), '#B9322A', s*0.7,0.3,0);
+      add(g, box(1.4,0.55,0.06), '#B9322A', 0,0.3,1.95); const b = add(g, new T.ConeGeometry(0.72,0.9,4), '#B9322A', 0,0.3,-2.3); b.rotation.x = -Math.PI/2; b.rotation.y = Math.PI/4; b.scale.set(1,1,0.6);
+      for (const z of [-1,0.3,1.4]) add(g, box(1.4,0.06,0.28), '#8A5E38', 0,0.42,z);
+      for (const s of [-1,1]) { const o = add(g, box(0.06,0.06,2.6), '#C9A26A', s*0.9,0.55,0.2); o.rotation.y = s*0.25; }
+    }},
+  stuga:{sv:'Stuga vid vik', sky:'#F2C9A6', fog:[60,400], ground:0, water:-0.2, depth:[6,22],
+    cam:{p:[0,1.6,14], t:[-2,1.4,-5], mm:35}, plan:{p:[0,60,40], t:[0,0,-8]},
+    lm:[{en:'the little red cottage with white trim', p:[-10,2,-8]},{en:'the pond beside the cottage', p:[6,0,-2]},{en:'the cove and the sea', p:[0,0,-40]},{en:'the pine trees', p:[-20,3,-14]},{en:'the pink granite rocks', p:[14,1,-10]}],
+    build(g){
+      sea(g,-0.2,'#3A7FA0'); add(g, box(120,0.4,44), '#8B9A6A', 0,-0.2,6);
+      house(g,-10,-8,6,5,'#B23A2A'); add(g, new T.CircleGeometry(4,28), '#4E9EBF', 6,0.03,-2).rotation.x = -Math.PI/2;
+      for (const [x,z,s] of [[-20,-14,1.3],[-23,-9,1.1],[-17,-18,1.2],[18,-16,1.2],[22,-12,1]]) pine(g,x,z,s);
+      rock(g,14,0.3,-10,2.2,'#C2A39B'); rock(g,10,0.2,-14,1.6,'#C2A39B'); rock(g,-3,0.1,-16,1.4,'#C2A39B');
+    }},
+  damm:{sv:'Damm', sky:'#F2C9A6', fog:[30,300], ground:0, water:0.03, depth:[1.5,4.5],
+    cam:{p:[0,0.8,4.2], t:[0,0.05,0], mm:35}, plan:{p:[0,10,6], t:[0,0,0]},
+    lm:[{en:'the clear pond water', p:[0,0,0]},{en:'the reeds at the pond edge', p:[-2.6,0.5,-1.4]},{en:'the stones around the pond', p:[2.6,0.2,0.6]},{en:'the red cottage in the distance', p:[-12,2,-15]}],
+    build(g){
+      add(g, box(80,0.4,80), '#8B9A6A', 0,-0.2,0); add(g, new T.CircleGeometry(3,32), '#4E9EBF', 0,0.03,0).rotation.x = -Math.PI/2;
+      for (let i=0;i<16;i++){ const a=i/16*Math.PI*2; rock(g, Math.cos(a)*3.2, 0.1, Math.sin(a)*3.2, 0.25+(i%3)*0.08, '#B8A49C'); }
+      for (let i=0;i<24;i++) add(g, cyl(0.02,0.02,1+(i%4)*0.2,4), '#6F8F3A', -2.6+(i%6)*0.15, 0.5, -1.4+Math.floor(i/6)*0.18);
+      house(g,-12,-15,6,5,'#B23A2A'); pine(g,-18,-18,1.2); pine(g,6,-20,1.3);
+    }},
+};
+
+// ---------- miljödelar man kan placera ----------
+const PIECES = {
+  hus:{sv:'Hus', en:'a wooden house', c:'#B23A2A', mk:(g,c)=>house(g,0,0,6,5,c)},
+  stuga:{sv:'Liten stuga', en:'a small cottage', c:'#B23A2A', mk:(g,c)=>house(g,0,0,3.5,3,c)},
+  trad:{sv:'Lövträd', en:'a leafy tree', c:'#4F8A3E', mk:(g,c)=>{ add(g, cyl(0.18,0.25,2.4,7), '#6A4A32', 0,1.2,0); add(g, new T.SphereGeometry(1.7,10,8), c, 0,3.4,0); }},
+  gran:{sv:'Gran/tall', en:'a pine tree', c:'#2F5238', mk:(g,c)=>{ add(g, cyl(0.12,0.18,1.2,6), '#5A4030', 0,0.6,0); add(g, new T.ConeGeometry(1.1,3.2,7), c, 0,2.6,0); }},
+  sten:{sv:'Sten/häll', en:'a granite boulder', c:'#B49A94', mk:(g,c)=>rock(g,0,0.3,0,1.2,c)},
+  berg:{sv:'Kulle/berg', en:'a rocky hill', c:'#A8918A', mk:(g,c)=>{ const m = add(g, new T.ConeGeometry(10,7,9), c, 0,3.4,0); m.scale.z = 0.8; }},
+  brygga:{sv:'Brygga', en:'a wooden jetty', c:'#8A6A48', mk:(g,c)=>{ add(g, box(2.4,0.25,12), c, 0,0.4,0); for (let z=-5.5;z<=5.5;z+=2.75) for (const x of [-1.1,1.1]) add(g, cyl(0.1,0.1,1.6,6), '#5C4630', x,-0.3,z); }},
+  fyr:{sv:'Fyr/torn', en:'a lighthouse', c:'#F4F1EA', mk:(g,c)=>{ add(g, cyl(0.9,1.2,7,14), c, 0,3.5,0); add(g, cyl(1.1,1.1,1.2,14), '#C23A2A', 0,7.6,0); add(g, new T.ConeGeometry(1.2,1,14), '#3A3A3A', 0,8.7,0); }},
+  vagg:{sv:'Vägg/mur', en:'a wall', c:'#D9CFBD', mk:(g,c)=>add(g, box(6,2.8,0.2), c, 0,1.4,0)},
+  staket:{sv:'Staket', en:'a wooden fence', c:'#E9E2D2', mk:(g,c)=>{ add(g, box(6,0.08,0.06), c, 0,0.8,0); add(g, box(6,0.08,0.06), c, 0,0.4,0); for (let x=-3;x<=3;x+=0.6) add(g, box(0.08,1,0.05), c, x,0.5,0); }},
+  dorr:{sv:'Dörr', en:'a door', c:'#7A5A3A', mk:(g,c)=>add(g, box(1,2.1,0.08), c, 0,1.05,0)},
+  fonster:{sv:'Fönster', en:'a window', c:'#9CCBE0', mk:(g,c)=>{ add(g, box(1.3,1.1,0.06), c, 0,1.5,0); add(g, box(1.45,0.08,0.1), '#F2EDE2', 0,0.92,0); }},
+  bord:{sv:'Bord', en:'a table', c:'#9A6E44', mk:(g,c)=>{ add(g, box(1.6,0.06,0.9), c, 0,0.75,0); for (const x of [-0.7,0.7]) for (const z of [-0.35,0.35]) add(g, box(0.06,0.75,0.06), c, x,0.37,z); }},
+  stol:{sv:'Stol', en:'a chair', c:'#8A5E38', mk:(g,c)=>{ add(g, box(0.45,0.05,0.45), c, 0,0.45,0); add(g, box(0.45,0.5,0.05), c, 0,0.72,-0.2); for (const x of [-0.2,0.2]) for (const z of [-0.2,0.2]) add(g, box(0.04,0.45,0.04), c, x,0.22,z); }},
+  lampa:{sv:'Lyktstolpe', en:'a street lamp', c:'#3A3F46', mk:(g,c)=>{ add(g, cyl(0.06,0.08,3.6,8), c, 0,1.8,0); add(g, new T.SphereGeometry(0.22,10,8), '#FFE7A0', 0,3.7,0); }},
+  damm:{sv:'Damm/vattenpöl', en:'a small pond', c:'#4E9EBF', mk:(g,c)=>{ add(g, new T.CircleGeometry(3,28), c, 0,0.03,0).rotation.x = -Math.PI/2; }},
+  vass:{sv:'Vass', en:'reeds', c:'#6F8F3A', mk:(g,c)=>{ for (let i=0;i<20;i++) add(g, cyl(0.02,0.02,1+(i%4)*0.2,4), c, (i%5)*0.18-0.36, 0.55, Math.floor(i/5)*0.18-0.27); }},
+  bat:{sv:'Båt (kuliss)', en:'a moored boat', c:'#2F6E8E', mk:(g,c)=>{ add(g, box(1.6,0.6,4.5), c, 0,0.1,0); add(g, box(1,0.9,1.2), '#F1EEE6', 0,0.8,0.4); }},
+  block:{sv:'Block (fritt)', en:'a building', c:'#B9B2A6', mk:(g,c)=>add(g, box(4,4,4), c, 0,2,0)},
+};
+
+// ---------- figurer ----------
+function mkActor(d){
+  const own = (d.model || d.cut) && mkFig(d); if (own) return own;
+  const g = new T.Group();
+  const put = (geo,c,x,y,z) => { const m = new T.Mesh(geo, mat(c)); m.position.set(x,y,z); g.add(m); return m; };
+  const k = d.k, H = +d.h || KINDS[k]?.h || 1, C = d.c || '#888888';
+  if (k === 'h'){
+    const s = H/1.8, pa = d.pa || '#3B5A86';
+    put(cyl(0.11*s,0.11*s,0.8*s,10), pa, -0.12*s,0.4*s,0); put(cyl(0.11*s,0.11*s,0.8*s,10), pa, 0.12*s,0.4*s,0);
+    const body = put(cyl(0.24*s,0.27*s,0.65*s,14), C, 0,1.12*s,0); body.scale.z = 0.75;
+    put(cyl(0.07*s,0.07*s,0.6*s,8), C, -0.32*s,1.15*s,0); put(cyl(0.07*s,0.07*s,0.6*s,8), C, 0.32*s,1.15*s,0);
+    put(new T.SphereGeometry(0.17*s,16,12), d.skin || '#F0B9A0', 0,1.6*s,0);
+    put(new T.SphereGeometry(0.06*s,10,8), '#E58C80', 0,1.58*s,0.17*s);
+    if (d.beard) { const b = put(new T.SphereGeometry(0.13*s,12,8), d.beard, 0,1.49*s,0.07*s); b.scale.set(1,0.8,0.8); }
+    if (d.hat && d.hatType === 'cap'){ put(cyl(0.18*s,0.18*s,0.07*s,16), d.hat, 0,1.75*s,0); put(box(0.22*s,0.02*s,0.14*s), d.hat, 0,1.73*s,0.16*s); }
+    else if (d.hat) put(new T.SphereGeometry(0.18*s,16,10,0,Math.PI*2,0,Math.PI/2), d.hat, 0,1.66*s,0);
+    else put(new T.SphereGeometry(0.175*s,16,10,0,Math.PI*2,0,Math.PI/2), d.hair || '#5A4232', 0,1.62*s,-0.01*s);
+  } else if (k === 'q'){
+    const b = put(new T.SphereGeometry(H*0.45,14,10), C, 0,H*0.7,0); b.scale.set(0.75,0.75,1.5);
+    for (const x of [-1,1]) for (const z of [-1,1]) put(cyl(H*0.07,H*0.07,H*0.5,6), C, x*H*0.18,H*0.25,z*H*0.4);
+    put(new T.SphereGeometry(H*0.26,12,10), C, 0,H*0.95,H*0.7); put(new T.SphereGeometry(H*0.06,8,6), '#222', 0,H*0.93,H*0.95);
+  } else if (k === 'f'){
+    const b = put(new T.SphereGeometry(H/2,16,12), C, 0,0,0); b.scale.set(0.55,1,1.4);
+    const t = put(new T.ConeGeometry(H*0.35,H*0.5,4), C, 0,0,-H*0.85); t.rotation.x = -Math.PI/2;
+    put(new T.SphereGeometry(H*0.13,8,6), '#FFFFFF', H*0.2,H*0.12,H*0.5); put(new T.SphereGeometry(H*0.13,8,6), '#FFFFFF', -H*0.2,H*0.12,H*0.5);
+  } else if (k === 'g'){
+    const s = H/0.35, b = put(new T.SphereGeometry(0.13*s,12,10), C, 0,0,0); b.scale.z = 1.5;
+    put(new T.SphereGeometry(0.08*s,10,8), C, 0,0.08*s,0.17*s); put(new T.ConeGeometry(0.025*s,0.08*s,6), '#F2C230', 0,0.08*s,0.27*s).rotation.x = Math.PI/2;
+    put(box(0.6*s,0.02*s,0.16*s), d.wing || '#9AA0A6', 0,0.03*s,0);
+  } else if (k === 'rb'){
+    const s = H/4; put(box(1.4*s,0.5*s,3.6*s), C, 0,0.25*s,0); const bow = put(new T.ConeGeometry(0.7*s,0.9*s,4), C, 0,0.25*s,2.2*s); bow.rotation.x = Math.PI/2; bow.rotation.y = Math.PI/4; bow.scale.set(1,1,0.6);
+    put(box(1.3*s,0.06*s,0.25*s), '#8A5E38', 0,0.4*s,-0.4*s); put(box(1.3*s,0.06*s,0.25*s), '#8A5E38', 0,0.4*s,0.8*s);
+  } else if (k === 'wb' || k === 'wbx'){
+    const h = new T.Group(); g.add(h); h.scale.setScalar(H/15);
+    const q = (geo,c,x,y,z) => { const m = new T.Mesh(geo, mat(c)); m.position.set(x,y,z); h.add(m); return m; };
+    q(box(4.6,1.8,13.5), C, 0,0.6,0); q(box(4.65,1.0,13.55), d.c2 || '#B33A2E', 0,-0.5,0); const bw = q(new T.ConeGeometry(2.3,2.6,4), C, 0,0.3,8.0); bw.rotation.x = Math.PI/2; bw.rotation.y = Math.PI/4; bw.scale.set(1,1,0.55);
+    q(box(3.6,2.4,4), '#F1EEE6', 0,2.7,1.5); q(box(3,1.3,3), '#F1EEE6', 0,4.5,1.8); q(new T.SphereGeometry(0.45,12,8), '#F1EEE6', 0,5.6,1.8);
+    q(box(0.3,2.4,0.3), '#E0B02E', 0,2.6,-5.5).rotation.x = -0.6;
+    if (d.g) for (let z=-4;z<=5;z+=1.5) for (const sd of [-1,1]) { const r = q(cyl(0.03,0.03,4,5), d.c2 || '#B33A2E', sd*3.6,2.2,z); r.rotation.z = sd*1.0; }
+    if (k === 'wbx'){ h.rotation.z = Math.PI; h.position.y = 0.8*H/15; }
+  } else if (k === 'car'){
+    const s = H/4.2; put(box(1.8*s,0.7*s,4.2*s), C, 0,0.6*s,0); put(box(1.6*s,0.6*s,2.2*s), C, 0,1.25*s,-0.2*s); put(box(1.62*s,0.45*s,2*s), '#9CCBE0', 0,1.28*s,-0.2*s);
+    for (const x of [-0.9,0.9]) for (const z of [-1.3,1.3]) put(cyl(0.33*s,0.33*s,0.22*s,12), '#222', x*s,0.33*s,z*s).rotation.z = Math.PI/2;
+  } else if (k === 'rod'){
+    const r = put(cyl(0.012,0.025,H,6), C, 0,H/2*0.7,0); r.rotation.x = 0.8; r.position.z = H*0.35;
+    put(cyl(0.06,0.06,0.08,10), '#C99A3E', 0,0.25,0.15).rotation.z = Math.PI/2;
+  } else if (k === 'lure'){
+    const b = put(new T.SphereGeometry(H/2,12,8), C, 0,0,0); b.scale.set(0.35,0.4,1);
+    put(new T.ConeGeometry(0.02,0.06,4), '#E07A2A', 0,-0.06,0.05);
+  } else if (k === 'small'){ put(cyl(H*0.35,H*0.35,H,10), C, 0,H/2,0); }
+  else if (k === 'bucket'){ put(cyl(H*0.55,H*0.4,H,16), C, 0,H/2,0); }
+  else if (k === 'coil'){ put(new T.TorusGeometry(H*0.85,H*0.25,8,18), C, 0,H*0.25,0).rotation.x = Math.PI/2; }
+  else { put(box(H*1.3,H*0.75,H*0.85), C, 0,H*0.37,0); }
+  return g;
+}
+function mkPiece(p){ const g = new T.Group(), def = PIECES[p.t] || PIECES.block; def.mk(g, p.c || def.c); g.scale.setScalar(p.s || 1); return g; }
+const hOf = d => +d.h || KINDS[d.k]?.h || 1;
+const sizeOf = d => { const k = d.k, H = hOf(d); return k==='rb' ? H*0.25 : (k==='wb'||k==='wbx') ? H/3 : k==='car' ? H*0.35 : k==='rod' ? H*0.8 : H; };
+const centerY = d => { const k = d.k, H = hOf(d); return k==='h' ? H*0.55 : k==='q' ? H*0.6 : k==='rb' ? H*0.08 : (k==='wb'||k==='wbx') ? H*0.1 : k==='car' ? H*0.19 : 0; };
+const topY = d => { const k = d.k, H = hOf(d); return k==='h' ? H+0.15 : (k==='wb'||k==='wbx') ? H*0.43 : k==='rb' ? H*0.22 : k==='car' ? H*0.45 : k==='q' ? H*1.25 : H+0.1; };
+
+// ---------- renderer ----------
+const cv = $('cv'), vpw = $('vpw');
+const R = new T.WebGLRenderer({canvas:cv, antialias:true, preserveDrawingBuffer:true});
+R.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
+const scene = new T.Scene();
+scene.add(new T.HemisphereLight(0xffffff, 0x6a6a5a, 0.85));
+const sun = new T.DirectionalLight(0xffffff, 0.75); sun.position.set(30,60,25); scene.add(sun);
+let world = new T.Group(); scene.add(world);
+const piecesG = new T.Group(); scene.add(piecesG);
+const actorsG = new T.Group(); scene.add(actorsG);
+const shotCam = new T.PerspectiveCamera(40, 16/9, 0.05, 3000);
+const planCam = new T.PerspectiveCamera(45, 16/9, 0.1, 5000);
+const helper = new T.CameraHelper(shotCam); helper.visible = false; scene.add(helper);
+const camBody = new T.Mesh(box(0.5,0.35,0.7), new T.MeshBasicMaterial({color:0xE0A030})); scene.add(camBody); camBody.visible = false;
+const ctlShot = new T.OrbitControls(shotCam, cv); ctlShot.screenSpacePanning = true;
+const ctlPlan = new T.OrbitControls(planCam, cv); ctlPlan.enabled = false; ctlPlan.screenSpacePanning = true;
+const vfov = mm => 2*Math.atan(12/mm)*180/Math.PI;
+function resize(){ R.setSize(vpw.clientWidth, vpw.clientHeight, false); }
+new ResizeObserver(resize).observe(vpw);
+
+// ---------- state ----------
+let db = null, projects = {}, shotsAll = {}, pid = null, P = null;
+let idx = 0, cur = null, sel = null, psel = null, view = 'cam', mode = 'shot', outMode = 'vid', applying = false;
+const pend = new Set(), timers = {};
+const LS = 'scenplanering-v1';
+function lsLoad(){ try { const v = JSON.parse(localStorage.getItem(LS)||'{}'); return v && typeof v==='object' ? v : {}; } catch { return {}; } }
+function lsSave(){ try { localStorage.setItem(LS, JSON.stringify({projects, shots:shotsAll, pid})); } catch {} }
+function status(t, err){ for (const id of ['status','status2']) { const s = $(id); s.textContent = t; s.className = 'status' + (err?' err':''); } }
+const shotKey = id => pid + '__' + id;
+const SH = () => P.shots;
+const tagOf = () => SH()[idx];
+const setOf = k => P.sets[k] || {sv:k, base:'tom', pieces:[]};
+const baseOf = k => BASES[setOf(k).base] || BASES.tom;
+const castOf = c => P.cast[c] || {sv:c, en:c, k:'crate', h:0.6};
+
+const writeT = {};
+function writeProject(id){
+  clearTimeout(writeT[id]);
+  writeT[id] = setTimeout(async () => {
+    if (!projects[id]) return;
+    const shots = {}; Object.keys(shotsAll).filter(k => k.startsWith(id+'__')).forEach(k => shots[k.slice(id.length+2)] = shotsAll[k]);
+    try { await native('write', {name:id, text:JSON.stringify({format:'scenplanering/1', id, project:projects[id], shots}, null, 1)}); status('Sparat ' + new Date().toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})); }
+    catch(e){ status('Kunde inte spara: ' + e.message, true); }
+  }, 500);
+}
+function persist(path, data, key){
+  if (NATIVE){ const m = key.match(/^[ps]:(.+?)(?:__|$)/); if (m) writeProject(m[1]); return; }
+  pend.add(key); lsSave(); clearTimeout(timers[key]);
+  timers[key] = setTimeout(async () => {
+    if (!db){ pend.delete(key); return; }
+    try { await db.doc(path).set({...data, at:new Date().toISOString()}); status('Sparat ' + new Date().toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})); }
+    catch(e){ status('Kunde inte spara ('+(e.code||'fel')+'). Försök igen om en stund.', true); }
+    finally { setTimeout(() => pend.delete(key), 1200); }
+  }, 450);
+}
+const saveProject = () => { if (P) persist('projekt/'+pid, P, 'p:'+pid); };
+const saveShot = id => { id = id || tagOf().id; const k = shotKey(id); if (shotsAll[k]) persist('skott/'+k, shotsAll[k], 's:'+k); };
+
+// ---------- skott ----------
+function defaultY(d, sk){
+  const b = baseOf(sk), k = d.k;
+  if (k==='f') return b.uw ? b.ground + 2 : b.water - 0.15;
+  if (k==='g') return b.ground + (b.bird || 6);
+  if (k==='rb'||k==='wb'||k==='wbx') return b.water;
+  return b.ground;
+}
+const expand = pre => (pre||[]).flatMap(c => P.groups?.[c] || [c]);
+function placeNew(st, code, i, n){
+  const d = castOf(code), b = baseOf(st.sc), p = new T.Vector3(...st.cam.p), t = new T.Vector3(...st.cam.t);
+  const dir = t.clone().sub(p); dir.y = 0; if (dir.lengthSq() < 1e-6) dir.set(0,0,-1); dir.normalize(); const side = new T.Vector3(-dir.z,0,dir.x);
+  const dist = Math.max(2, b.depth[0]*1.1) + ((d.k==='wb'||d.k==='wbx') ? 14 : 0);
+  const q = p.clone().add(dir.multiplyScalar(dist)).add(side.multiplyScalar((i-(n-1)/2) * Math.max(0.9, b.depth[0]*0.35)));
+  const face = Math.round(Math.atan2(p.x-q.x, p.z-q.z)*180/Math.PI/5)*5;
+  return {c:code, k:code+'-'+uid(), x:+q.x.toFixed(3), z:+q.z.toFixed(3), y:defaultY(d, st.sc), r:(face+360)%360, hid:false};
+}
+function initShot(i){
+  const tg = SH()[i], key = shotKey(tg.id); if (shotsAll[key]) return shotsAll[key];
+  let prev = null; for (let j=i-1;j>=0;j--){ const s = shotsAll[shotKey(SH()[j].id)]; if (s && s.sc === tg.sc){ prev = s; break; } }
+  const want = expand(tg.pre);
+  const st = prev ? {sc:tg.sc, cam:clone(prev.cam), actors:clone(prev.actors), note:'', done:false}
+                  : {sc:tg.sc, cam:clone(baseOf(tg.sc).cam), actors:[], note:'', done:false};
+  st.actors.forEach(a => a.hid = !want.includes(a.c));
+  const missing = want.filter(c => P.cast[c] && !st.actors.some(a => a.c===c));
+  missing.forEach((c,k) => st.actors.push(placeNew(st, c, k, missing.length)));
+  shotsAll[key] = st; return st;
+}
+
+// ---------- bygga scenen ----------
+let builtBase = null;
+function buildWorld(){
+  const b = baseOf(cur.sc), bk = setOf(cur.sc).base;
+  if (builtBase !== bk){ builtBase = bk; scene.remove(world); world = new T.Group(); b.build(world); scene.add(world);
+    scene.background = new T.Color(b.sky); scene.fog = new T.Fog(b.fogc || b.sky, b.fog[0], b.fog[1]);
+    planCam.position.set(...b.plan.p); ctlPlan.target.set(...b.plan.t); ctlPlan.update(); }
+}
+function syncPieces(){
+  piecesG.clear(); if (!cur) return; const b = baseOf(cur.sc);
+  (setOf(cur.sc).pieces || []).forEach(p => { const g = mkPiece(p); g.position.set(p.x, b.ground, p.z); g.rotation.y = (p.r||0)*Math.PI/180; g.userData.pk = p.id; g.traverse(o => { if (o.isMesh) o.userData.root = g; }); piecesG.add(g); });
+}
+function syncActors(){
+  actorsG.clear(); if (!cur) return;
+  cur.actors.forEach(a => {
+    const g = mkActor(castOf(a.c)); g.position.set(a.x, a.y, a.z); g.rotation.y = a.r*Math.PI/180; g.userData.key = a.k;
+    g.traverse(o => { if (o.isMesh){ o.userData.root = g; if (a.hid || mode==='set'){ o.material.transparent = true; o.material.opacity = a.hid ? (view==='plan' ? 0.25 : 0) : 0.35; } } });
+    actorsG.add(g);
+  });
+}
+function applyCam(){ applying = true; const c = cur.cam; shotCam.position.set(...c.p); ctlShot.target.set(...c.t); shotCam.fov = vfov(c.mm); shotCam.updateProjectionMatrix(); ctlShot.update(); applying = false; }
+function readCam(){ cur.cam.p = shotCam.position.toArray().map(v=>+v.toFixed(3)); cur.cam.t = ctlShot.target.toArray().map(v=>+v.toFixed(3)); }
+
+// ---------- UI ----------
+function renderProjSel(){
+  const s = $('proj'); s.innerHTML = '';
+  const ids = Object.keys(projects).sort((a,b) => (projects[a].name||a).localeCompare(projects[b].name||b, 'sv'));
+  ids.forEach(id => s.add(new Option(projects[id].name || id, id)));
+  if (!ids.length) s.add(new Option('Inga projekt', ''));
+  s.value = pid || '';
+}
+function renderList(){
+  const box = $('shots'); box.innerHTML = ''; if (!P) { $('prog').textContent = ''; return; }
+  const f = $('flt').value;
+  SH().forEach((t,i) => {
+    if (f && t.sc !== f) return;
+    const s = shotsAll[shotKey(t.id)];
+    const b = document.createElement('button'); b.className = 'si'; b.setAttribute('aria-current', i===idx);
+    b.innerHTML = `<span class="dot ${s ? (s.done ? 'd' : 'p') : ''}"></span><span class="n">${esc(t.id)}</span><span class="s">${esc(setOf(t.sc).sv + (t.sv ? ' · ' + t.sv : ''))}</span>`;
+    b.onclick = () => go(i); box.appendChild(b);
+  });
+  const done = SH().filter(t => shotsAll[shotKey(t.id)]?.done).length; $('prog').textContent = `${done} av ${SH().length} skott klara`;
+}
+function renderSetSelects(){
+  const keep = $('flt').value; $('flt').innerHTML = '<option value="">Alla miljöer</option>'; $('scSel').innerHTML = '';
+  Object.entries(P.sets).forEach(([k,s]) => { $('flt').add(new Option(s.sv, k)); $('scSel').add(new Option(s.sv, k)); });
+  $('flt').value = P.sets[keep] ? keep : '';
+}
+const chipHTML = c => { const d = castOf(c); return `<code style="background:${kcol(d.k)}">${esc(c)}</code>${esc(d.sv)}`; };
+function renderSheets(){
+  const list = [], set = setOf(cur.sc);
+  if (set?.img) list.push({src:imgSrc(set.img), t:set.sv + ' (miljö)'});
+  [...new Set(cur.actors.filter(a => !a.hid).map(a => a.c))].forEach(c => { const d = castOf(c); if (d.img) list.push({src:imgSrc(d.img), t:d.sv + ' (' + c + ')'}); });
+  $('sheetSec').hidden = !list.length;
+  $('sheets').innerHTML = list.map((o,i) => `<button data-i="${i}" title="Visa större"><img src="${esc(o.src)}" alt="">${esc(o.t)}</button>`).join('');
+  $('sheets').querySelectorAll('button').forEach(b => b.onclick = () => showImage(list[+b.dataset.i].src, list[+b.dataset.i].t));
+}
+function renderSide(){
+  if (!cur) return;
+  const cast = $('cast'); cast.innerHTML = '';
+  cur.actors.forEach(a => {
+    const b = document.createElement('button'); b.className = 'chip ' + (a.hid ? 'off' : 'in'); b.setAttribute('aria-pressed', sel===a.k);
+    b.innerHTML = chipHTML(a.c) + (a.hid ? ' <span class="hint">dold</span>' : ''); b.onclick = () => { sel = sel===a.k ? null : a.k; renderSide(); }; cast.appendChild(b);
+  });
+  if (!cur.actors.length) cast.innerHTML = '<p class="hint">Ingen placerad ännu. Lägg till nedan.</p>';
+  const pal = $('pal'); pal.innerHTML = '';
+  GRP.forEach(([g, test]) => {
+    const list = Object.keys(P.cast).filter(c => test(P.cast[c].k) && (P.cast[c].multi || !cur.actors.some(a => a.c===c)));
+    if (!list.length) return;
+    const w = document.createElement('div'); w.style.marginBottom = '8px';
+    w.innerHTML = `<div class="hint" style="margin-bottom:4px">${g}</div><div class="chips"></div>`;
+    list.forEach(c => { const b = document.createElement('button'); b.className = 'chip'; b.innerHTML = chipHTML(c); b.onclick = () => addActor(c); w.lastChild.appendChild(b); });
+    pal.appendChild(w);
+  });
+  if (!Object.keys(P.cast).length) pal.innerHTML = '<p class="hint">Projektet har inga roller. Lägg till dem under Projekt….</p>';
+  const a = cur.actors.find(x => x.k===sel);
+  renderSheets();
+  $('selBox').hidden = !a;
+  const ad = a && castOf(a.c); $('selImg').hidden = !ad?.img; if (ad?.img){ $('selImg').src = imgSrc(ad.img); $('selImg').onclick = () => showImage(imgSrc(ad.img), ad.sv); }
+  if (a){ $('selName').textContent = castOf(a.c).sv + ' (' + a.c + ')'; $('rRot').value = a.r; $('oRot').textContent = a.r + '°'; $('rY').value = a.y; $('oY').textContent = a.y.toFixed(1) + ' m'; $('bHide').textContent = a.hid ? 'Visa i skottet' : 'Dölj i skottet'; }
+  $('rMM').value = cur.cam.mm; $('oMM').textContent = cur.cam.mm + ' mm';
+  $('rCH').value = cur.cam.p[1]; $('oCH').textContent = cur.cam.p[1].toFixed(1) + ' m';
+  if (document.activeElement !== $('note')) $('note').value = cur.note || '';
+  $('bDone').textContent = cur.done ? 'Klar ✓ → nästa' : 'Klar → nästa';
+  $('bPrev').disabled = idx===0;
+  $('out').textContent = outMode==='vid' ? videoText() : imageText();
+  $('outHint').textContent = outMode==='vid'
+    ? 'Klistra in i Seedance-prompten före ACTION. Referenserna räknas från @Image2 – @Image1 är startbilden.'
+    : 'För en bildmodell i Higgsfield: bifoga layoutbilden (Spara layoutbild) som @Image1 och sedan referensbilderna i den ordning texten anger.';
+  renderSetSide();
+}
+function renderSetSide(){
+  const s = setOf(cur.sc), b = baseOf(cur.sc);
+  $('setInfo').textContent = `${s.sv} – grund: ${b.sv}. ${(s.pieces||[]).length} egna delar.`;
+  const pp = $('ppal'); if (!pp.children.length) Object.entries(PIECES).forEach(([t,d]) => { const x = document.createElement('button'); x.className = 'chip'; x.innerHTML = `<code style="background:#5D6A72">+</code>${d.sv}`; x.onclick = () => addPiece(t); pp.appendChild(x); });
+  const p = (s.pieces||[]).find(x => x.id===psel);
+  $('pBox').hidden = !p;
+  if (p){ $('pName').textContent = (PIECES[p.t]||PIECES.block).sv; if (document.activeElement !== $('pEn')) $('pEn').value = p.en || ''; $('pRot').value = p.r||0; $('opRot').textContent = (p.r||0)+'°'; $('pS').value = p.s||1; $('opS').textContent = (p.s||1).toFixed(2)+'×'; $('pC').value = p.c || (PIECES[p.t]||PIECES.block).c; }
+}
+function render(){
+  const E = $('empty');
+  if (!P || !SH().length){
+    E.hidden = false; actorsG.clear(); piecesG.clear();
+    E.querySelector('b').textContent = P ? 'Projektet har inga skott än' : 'Inget projekt än';
+    E.querySelector('span').textContent = P ? 'Lägg in miljöer och skottlistan under Projekt….' : 'Skapa ett projekt med roller, miljöer och skott – eller importera en projektfil.';
+    $('bFirst').textContent = P ? 'Öppna projektet' : 'Skapa projekt';
+    $('sid').textContent = P ? P.name : 'Scenplanering'; $('smeta').textContent = ''; $('ssv').textContent = ''; renderList(); return;
+  }
+  E.hidden = true;
+  const t = tagOf();
+  $('sid').textContent = 'Skott ' + t.id; $('smeta').textContent = setOf(cur.sc).sv + (t.light ? ' · ' + (t.light.length > 48 ? t.light.split(/[,;]/)[0] + '…' : t.light) : ''); $('smeta').title = t.light || ''; $('ssv').textContent = t.sv || '';
+  $('scSel').value = cur.sc;
+  buildWorld(); syncPieces(); syncActors(); applyCam(); renderSide(); renderList();
+}
+function go(i){ if (!P || i<0 || i>=SH().length) return; idx = i; sel = null; psel = null; cur = initShot(i); try{ localStorage.setItem(LS+'-idx-'+pid, String(i)); }catch{} render(); }
+function openProject(id){
+  pid = id; P = id ? projects[id] || null : null; builtBase = null;
+  if (P){ P.cast ||= {}; P.sets ||= {}; P.shots ||= []; renderSetSelects(); let i = 0; try { i = +localStorage.getItem(LS+'-idx-'+pid) || 0; } catch {} idx = Math.min(Math.max(0,i), Math.max(0, SH().length-1)); cur = SH().length ? initShot(idx) : null; }
+  else cur = null;
+  lsSave(); try { localStorage.setItem(LS+'-pid', pid || ''); } catch {} renderProjSel(); render();
+}
+function addActor(c){ const a = placeNew(cur, c, 0, 1); cur.actors.push(a); sel = a.k; cur.done = false; syncActors(); saveShot(); renderSide(); }
+function addPiece(t){
+  const s = P.sets[cur.sc]; if (!s) return; s.pieces ||= [];
+  readCam(); const p = new T.Vector3(...cur.cam.p), tg = new T.Vector3(...cur.cam.t), dir = tg.clone().sub(p); dir.y = 0; if (dir.lengthSq()<1e-6) dir.set(0,0,-1); dir.normalize();
+  const q = p.clone().add(dir.multiplyScalar(Math.max(4, baseOf(cur.sc).depth[1]*0.6)));
+  const pc = {id:t+'-'+uid(), t, x:+q.x.toFixed(2), z:+q.z.toFixed(2), r:0, s:1, en:PIECES[t].en, c:PIECES[t].c};
+  s.pieces.push(pc); psel = pc.id; syncPieces(); saveProject(); renderSide();
+}
+
+// ---------- text till Higgsfield ----------
+function analyse(){
+  readCam(); shotCam.updateMatrixWorld(); shotCam.updateProjectionMatrix();
+  const cp = shotCam.position.clone(), tg = ctlShot.target.clone(), b = baseOf(cur.sc);
+  const fwd = tg.clone().sub(cp).normalize(), dist = tg.distanceTo(cp);
+  const hgt = cp.y - b.ground, pitch = Math.asin(Math.max(-1,Math.min(1,fwd.y)))*180/Math.PI;
+  let angle = b.uw ? (pitch > 20 ? 'looking up toward the bright surface' : pitch < -25 ? 'looking down at the seabed' : 'at eye level with the action')
+    : hgt < 0.6 ? 'low angle, close to the ground' : hgt < 2.2 ? 'eye level' : hgt < 7 ? 'high angle' : 'high aerial view';
+  if (!b.uw && pitch < -35) angle += ', looking steeply down'; else if (!b.uw && pitch > 15) angle += ', looking up';
+  const tanH = Math.tan(shotCam.fov*Math.PI/360), inF = [], out = [];
+  for (const a of cur.actors){
+    if (a.hid) continue;
+    const d = castOf(a.c), ctr = new T.Vector3(a.x, a.y + centerY(d), a.z);
+    const depth = ctr.clone().sub(cp).dot(fwd), n = ctr.clone().project(shotCam);
+    if (depth <= 0.05 || Math.abs(n.x) > 1.15 || Math.abs(n.y) > 1.15){ out.push(a); continue; }
+    const frac = sizeOf(d) / (2*depth*tanH);
+    const hor = n.x < -0.33 ? 'left third' : n.x > 0.33 ? 'right third' : 'center';
+    const ver = n.y > 0.4 ? ', high in frame' : n.y < -0.45 ? ', low in frame' : '';
+    const dep = depth < b.depth[0] ? 'foreground' : depth < b.depth[1] ? 'midground' : 'background';
+    const sz = frac > 0.75 ? 'fills the frame (close-up)' : frac > 0.4 ? 'large' : frac > 0.18 ? 'medium size' : frac > 0.07 ? 'small' : 'tiny in the distance';
+    const cut = Math.abs(n.x) > 0.95 || Math.abs(n.y) > 0.95 ? ', partly cut off by the frame edge' : '';
+    const r = a.r*Math.PI/180, f = new T.Vector3(Math.sin(r),0,Math.cos(r));
+    const toCam = cp.clone().sub(ctr); toCam.y = 0; toCam.normalize();
+    const dot = f.dot(toCam), s2 = ctr.clone().add(f).project(shotCam).x - n.x, lr = s2 < 0 ? 'left' : 'right';
+    const fr = d.k==='car' ? 'front' : 'bow', bk = d.k==='car' ? 'rear' : 'stern';
+    let face = '';
+    if (VEH.includes(d.k)) face = dot > 0.7 ? `${fr} pointing toward the camera` : dot < -0.7 ? `${bk} toward the camera` : `seen side-on, ${fr} pointing ${lr}`;
+    else if (LIVE.includes(d.k)) face = dot > 0.7 ? 'facing the camera' : dot < -0.7 ? 'seen from behind' : dot > 0.25 ? `three-quarter view, turned toward frame ${lr}` : dot < -0.25 ? `turned away, looking toward frame ${lr}` : `in profile, facing frame ${lr}`;
+    inF.push({a, d, line:`${hor}${ver}, ${dep}, ${sz}${face ? ', ' + face : ''}${cut}`, x:n.x});
+  }
+  inF.sort((p,q) => p.x - q.x);
+  const lms = b.lm.concat((setOf(cur.sc).pieces||[]).filter(p => p.en).map(p => ({en:p.en, p:[p.x, b.ground + 1.2*(p.s||1), p.z]})));
+  const bg = [];
+  for (const lm of lms){ const p = new T.Vector3(...lm.p), dd = p.clone().sub(cp).dot(fwd), n = p.clone().project(shotCam); if (dd > 0 && Math.abs(n.x) < 1.05 && Math.abs(n.y) < 1.2 && !bg.includes(lm.en)) bg.push(lm.en); }
+  const mm = cur.cam.mm, lens = mm <= 24 ? 'wide' : mm <= 40 ? 'normal' : mm <= 70 ? 'slightly long' : 'long telephoto';
+  checkAxis();
+  return {angle, mm, lens, dist, inF, out, bg};
+}
+function refs(list){ const seen = [], m = {}; list.forEach(o => { const ref = o.d.ref; if (ref && !(ref in m)){ m[ref] = 2 + seen.length; seen.push(ref); } });
+  const set = setOf(cur.sc), loc = set?.ref || null; if (loc && !(loc in m)){ m[loc] = 2 + seen.length; seen.push(loc); }
+  return {m, seen, loc, setName:set?.sv || ''}; }
+const nm = (a, d) => `${d.en || d.sv} (${a.c})`;
+function videoText(){
+  const A_ = analyse(), r = refs(A_.inF), L = [];
+  if (r.seen.length) L.push('REFERENCES: @Image1 = the opening frame of this shot. ' + r.seen.map(f => `@Image${r.m[f]} = ${f}`).join(', ') + '.');
+  L.push('CAMERA & BLOCKING (from the 3D layout; keep positions, screen direction and framing exactly):');
+  L.push(`Camera: ${A_.angle}, ${A_.mm} mm ${A_.lens} lens, about ${A_.dist < 2 ? A_.dist.toFixed(1) : Math.round(A_.dist)} m from the point of interest.`);
+  if (A_.inF.length){ L.push('In frame, left to right:'); A_.inF.forEach(o => L.push(`- ${nm(o.a,o.d)}${o.d.ref ? ' @Image'+r.m[o.d.ref] : ''}: ${o.line}`)); }
+  else L.push('In frame: no characters, only the location.');
+  if (A_.out.length) L.push(`Not in frame: ${A_.out.map(a => nm(a, castOf(a.c))).join(', ')}.`);
+  if (r.loc) L.push(`Location: exactly as on @Image${r.m[r.loc]} (${r.loc}).`);
+  L.push(`Background: ${A_.bg.length ? A_.bg.join(', ') : 'open space and sky only'}.`);
+  if (cur.note) L.push(`Note: ${cur.note}`);
+  return L.join('\n');
+}
+function imageText(){
+  const A_ = analyse(), r = refs(A_.inF), t = tagOf();
+  const L = [`Create the opening frame of shot ${t.id}${P.name ? ' of ' + P.name : ''}, 16:9.`,
+    '@Image1 is a rough 3D blocking render with simple colored placeholder figures and code labels. Use it ONLY for the camera angle, lens, horizon height, composition, and exactly where each character and object stands, how big it is in frame and which way it faces. Do NOT copy its flat colors, simple shapes, grid, labels or plain sky.'];
+  if (A_.inF.length){ L.push('Replace every placeholder, left to right:'); A_.inF.forEach(o => L.push(`- the placeholder labeled ${o.a.c} = ${o.d.en || o.d.sv}${o.d.ref ? ', exactly as on @Image'+r.m[o.d.ref]+' ('+o.d.ref+')' : ''}: ${o.line}`)); }
+  L.push(`Camera: ${A_.angle}, ${A_.mm} mm ${A_.lens} lens.`);
+  if (r.loc) L.push(`Location: build the environment exactly as on @Image${r.m[r.loc]} (${r.loc}) – same buildings, materials and colors.`);
+  L.push(`Background: ${A_.bg.length ? A_.bg.join(', ') : 'open space and sky only'}.`);
+  if (t.sv) L.push(`Moment (shot note, for context): ${t.sv}`);
+  if (cur.note) L.push(`Note: ${cur.note}`);
+  if (t.light) L.push(`Lighting: ${t.light}.`);
+  if (P.style) L.push(P.style);
+  L.push('Only the characters listed above, no extra people or animals. No text, no labels, no watermark.');
+  return L.join('\n');
+}
+function checkAxis(){
+  const w = $('warn'); w.hidden = true;
+  let prev = null; for (let j=idx-1;j>=0;j--){ const s = shotsAll[shotKey(SH()[j].id)]; if (s && s.sc===cur.sc){ prev = {s, id:SH()[j].id}; break; } }
+  if (!prev) return;
+  const both = cur.actors.filter(a => !a.hid && LIVE.includes(castOf(a.c).k) && prev.s.actors.some(b => b.k===a.k && !b.hid));
+  if (both.length < 2) return;
+  const [a,b] = both, side = st => { const A1 = st.actors.find(x=>x.k===a.k), B1 = st.actors.find(x=>x.k===b.k), c = st.cam.p; return Math.sign((B1.x-A1.x)*(c[2]-A1.z) - (B1.z-A1.z)*(c[0]-A1.x)); };
+  if (side(cur) !== side(prev.s)){ w.hidden = false; w.textContent = `Kameran har gått över 180-gradersaxeln mellan ${castOf(a.c).sv} och ${castOf(b.c).sv} jämfört med skott ${prev.id}. Vänster och höger byter plats.`; }
+}
+
+// ---------- etiketter ----------
+function labelList(cam){
+  const w = vpw.clientWidth, h = vpw.clientHeight, L = [];
+  for (const a of cur.actors){
+    if (a.hid && view==='cam') continue;
+    const d = castOf(a.c), p = new T.Vector3(a.x, a.y + topY(d), a.z).project(cam);
+    if (p.z > 1 || Math.abs(p.x) > 1.1 || Math.abs(p.y) > 1.1) continue;
+    L.push({x:(p.x+1)/2*w, y:(1-p.y)/2*h, t:a.c, col:kcol(d.k), cls:(a.k===sel?' sel':'') + (a.hid?' hid':'')});
+  }
+  if (mode==='set') for (const pc of (setOf(cur.sc).pieces||[])){
+    const p = new T.Vector3(pc.x, baseOf(cur.sc).ground + 3*(pc.s||1), pc.z).project(cam);
+    if (p.z > 1 || Math.abs(p.x) > 1.1 || Math.abs(p.y) > 1.1) continue;
+    L.push({x:(p.x+1)/2*w, y:(1-p.y)/2*h, t:pc.en || PIECES[pc.t]?.sv, cls:' pc' + (pc.id===psel?' sel':'')});
+  }
+  return L;
+}
+function drawLabels(cam){ $('labels').innerHTML = labelList(cam).map(l => `<div class="lbl${l.cls}" style="left:${l.x}px;top:${l.y}px;${l.col?'background:'+l.col:''}">${esc(l.t)}</div>`).join(''); }
+
+// ---------- vridring ----------
+// Ring runt vald figur eller del: dra i den orange kulan för att vrida. Pilen visar vart den tittar.
+const gizmo = new T.Group(); gizmo.visible = false; scene.add(gizmo);
+const gzOn = c => new T.MeshBasicMaterial({color:c, depthTest:false, transparent:true, opacity:0.95});
+const gzRing = new T.Mesh(new T.TorusGeometry(1, 0.035, 8, 72), gzOn(0xF2B33D)); gzRing.rotation.x = Math.PI/2; gizmo.add(gzRing);
+const gzKnob = new T.Mesh(new T.SphereGeometry(0.13, 16, 12), gzOn(0xD2683E)); gzKnob.position.z = 1; gizmo.add(gzKnob);
+const gzTip = new T.Mesh(new T.ConeGeometry(0.1, 0.26, 12), gzKnob.material); gzTip.rotation.x = Math.PI/2; gzTip.position.z = 1.28; gizmo.add(gzTip);
+const gzPick = new T.Mesh(new T.TorusGeometry(1, 0.22, 6, 48), new T.MeshBasicMaterial({visible:false})); gzPick.rotation.x = Math.PI/2; gizmo.add(gzPick);
+gizmo.traverse(o => o.renderOrder = 20);
+const gzBox = new T.Box3(), gzSize = new T.Vector3();
+function selTarget(){
+  if (!cur) return null;
+  if (mode==='shot'){ const a = selA(); const g = a && actorsG.children.find(x => x.userData.key===a.k); return g && (!a.hid || view==='plan') ? {a, g, y:a.y} : null; }
+  const p = selP(); const g = p && piecesG.children.find(x => x.userData.pk===p.id); return g ? {a:p, g, y:baseOf(cur.sc).ground, piece:true} : null;
+}
+function updGizmo(){
+  const t = selTarget(); gizmo.visible = !!t; if (!t) return;
+  const rr = t.g.rotation.y; t.g.rotation.y = 0; gzBox.setFromObject(t.g); t.g.rotation.y = rr; gzBox.getSize(gzSize);
+  const rad = Math.max(0.45, Math.hypot(gzSize.x, gzSize.z)/2 + 0.25);
+  gizmo.position.set(t.g.position.x, t.y + 0.04, t.g.position.z); gizmo.rotation.y = rr; gizmo.scale.setScalar(rad);
+}
+const normDeg = d => ((Math.round(d) % 360) + 360) % 360;
+function setRot(t, deg){ t.a.r = normDeg(deg); t.g.rotation.y = t.a.r*Math.PI/180; }
+function saveRot(t){ if (t.piece) saveProject(); else { cur.done = false; saveShot(); } renderSide(); }
+document.querySelectorAll('[data-turn]').forEach(b => b.onclick = () => {
+  const t = selTarget() || (() => { const a = mode==='shot' ? selA() : selP(); return a ? {a, g:{rotation:{}}, piece:mode!=='shot'} : null; })(); if (!t) return;
+  const v = b.dataset.turn;
+  if (v === 'cam'){ const c = shotCam.position; setRot(t, Math.atan2(c.x - t.a.x, c.z - t.a.z)*180/Math.PI); }
+  else setRot(t, (t.a.r||0) + +v);
+  if (t.piece) syncPieces(); else syncActors(); saveRot(t);
+});
+
+// ---------- dra ----------
+const ray = new T.Raycaster(), ndc = new T.Vector2(); let drag = null;
+const activeCam = () => view==='cam' ? shotCam : planCam;
+function setNdc(e){ const r = cv.getBoundingClientRect(); ndc.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1); }
+cv.addEventListener('pointerdown', e => {
+  if (!cur || e.button !== 0 || e.shiftKey) return;
+  setNdc(e); ray.setFromCamera(ndc, activeCam());
+  if (gizmo.visible && ray.intersectObjects([gzPick, gzKnob, gzTip]).length){
+    const t = selTarget(); drag = {...t, rot:true, plane:new T.Plane(new T.Vector3(0,1,0), -(t.y + 0.04))};
+    ctlShot.enabled = ctlPlan.enabled = false; cv.setPointerCapture(e.pointerId); e.preventDefault(); e.stopImmediatePropagation(); return;
+  }
+  let obj = null, y = 0;
+  if (mode==='shot'){
+    const hit = ray.intersectObjects(actorsG.children, true).find(h => { const a = cur.actors.find(x => x.k===h.object.userData.root?.userData.key); return a && (!a.hid || view==='plan'); });
+    if (hit){ const g = hit.object.userData.root; obj = {a:cur.actors.find(x => x.k===g.userData.key), g}; y = obj.a.y; sel = obj.a.k; }
+  } else {
+    const hit = ray.intersectObjects(piecesG.children, true)[0];
+    if (hit){ const g = hit.object.userData.root; obj = {a:(setOf(cur.sc).pieces||[]).find(x => x.id===g.userData.pk), g, piece:true}; y = baseOf(cur.sc).ground; if (obj.a) psel = obj.a.id; }
+  }
+  if (!obj || !obj.a) return;
+  const plane = new T.Plane(new T.Vector3(0,1,0), -y), p = new T.Vector3();
+  if (e.altKey){ drag = {...obj, rot:true, plane}; ctlShot.enabled = ctlPlan.enabled = false; cv.setPointerCapture(e.pointerId); e.preventDefault(); e.stopImmediatePropagation(); renderSide(); return; }
+  drag = {...obj, plane, off: ray.ray.intersectPlane(plane, p) ? new T.Vector3(obj.a.x-p.x, 0, obj.a.z-p.z) : new T.Vector3()};
+  ctlShot.enabled = ctlPlan.enabled = false; cv.setPointerCapture(e.pointerId); e.preventDefault(); e.stopImmediatePropagation(); renderSide();
+}, true);
+cv.addEventListener('pointermove', e => {
+  if (!drag) return; setNdc(e); ray.setFromCamera(ndc, activeCam());
+  const p = new T.Vector3(); if (!ray.ray.intersectPlane(drag.plane, p)) return;
+  if (drag.rot){ const d = Math.atan2(p.x - drag.a.x, p.z - drag.a.z)*180/Math.PI; setRot(drag, e.shiftKey ? d : Math.round(d/5)*5); const o = $(drag.piece ? 'opRot' : 'oRot'); if (o) o.textContent = drag.a.r + '°'; return; }
+  drag.a.x = +(p.x+drag.off.x).toFixed(3); drag.a.z = +(p.z+drag.off.z).toFixed(3); drag.g.position.x = drag.a.x; drag.g.position.z = drag.a.z;
+}, true);
+function endDrag(){ if (!drag) return; const piece = drag.piece; drag = null; ctlShot.enabled = view==='cam'; ctlPlan.enabled = view==='plan'; if (piece) saveProject(); else { cur.done = false; saveShot(); } renderSide(); }
+cv.addEventListener('pointerup', endDrag, true); cv.addEventListener('pointercancel', endDrag, true);
+let camT = null;
+ctlShot.addEventListener('change', () => { if (!cur || applying) return; clearTimeout(camT); camT = setTimeout(() => { readCam(); cur.done = false; saveShot(); renderSide(); }, 250); });
+
+// ---------- kontroller ----------
+function setView(v){
+  view = v; $('vCam').setAttribute('aria-pressed', v==='cam'); $('vPlan').setAttribute('aria-pressed', v==='plan');
+  ctlShot.enabled = v==='cam'; ctlPlan.enabled = v==='plan'; helper.visible = camBody.visible = v==='plan'; $('thirds').hidden = v!=='cam';
+  $('vtag').textContent = v==='cam' ? 'Kameravy · skottets bild' : 'Planvy · hela miljön, skottets kamera i gult'; syncActors();
+}
+function setMode(m){
+  mode = m; $('mShot').setAttribute('aria-pressed', m==='shot'); $('mSet').setAttribute('aria-pressed', m==='set');
+  $('sideShot').hidden = m!=='shot'; $('sideSet').hidden = m!=='set';
+  $('help').innerHTML = m==='shot'
+    ? 'Dra en figur för att flytta den, eller flytta vald figur med piltangenterna. Vrid den genom att dra i den orange kulan på ringen (eller <kbd>Alt</kbd>+dra, eller <kbd>R</kbd>). Dra i tomma ytan för att svänga kameran, högerdra eller <kbd>Shift</kbd>+dra för att flytta sidledes, scrolla för att gå närmare. <kbd>H</kbd> döljer vald figur i skottet.'
+    : 'Bygg miljön: lägg till delar till höger och dra dem på plats, gärna i Planvy. Vrid vald del med den orange kulan på ringen, <kbd>Alt</kbd>+dra eller <kbd>R</kbd>; piltangenterna flyttar den. Figurerna syns genomskinliga medan du bygger.';
+  syncActors(); if (cur) renderSide();
+}
+$('vCam').onclick = () => setView('cam'); $('vPlan').onclick = () => setView('plan');
+$('mShot').onclick = () => setMode('shot'); $('mSet').onclick = () => setMode('set');
+$('oVid').onclick = () => { outMode = 'vid'; $('oVid').setAttribute('aria-pressed', true); $('oImg').setAttribute('aria-pressed', false); renderSide(); };
+$('oImg').onclick = () => { outMode = 'img'; $('oImg').setAttribute('aria-pressed', true); $('oVid').setAttribute('aria-pressed', false); renderSide(); };
+$('proj').onchange = e => { if (e.target.value) openProject(e.target.value); };
+$('flt').onchange = renderList;
+$('scSel').onchange = e => { cur.sc = e.target.value; tagOf().sc = cur.sc; cur.cam = clone(baseOf(cur.sc).cam); cur.actors.forEach(a => a.y = defaultY(castOf(a.c), cur.sc)); cur.done = false; saveShot(); saveProject(); render(); };
+const selA = () => cur?.actors.find(x => x.k===sel);
+$('rRot').oninput = e => { const a = selA(); if (!a) return; a.r = +e.target.value; syncActors(); saveShot(); renderSide(); };
+$('rY').oninput = e => { const a = selA(); if (!a) return; a.y = +e.target.value; syncActors(); saveShot(); renderSide(); };
+$('bHide').onclick = () => { const a = selA(); if (!a) return; a.hid = !a.hid; syncActors(); saveShot(); renderSide(); };
+function armed(btn, label, fn){ let on = false; btn.onclick = () => { if (!on){ on = true; btn.textContent = 'Klicka igen'; setTimeout(() => { on = false; btn.textContent = label; }, 2200); return; } on = false; btn.textContent = label; fn(); }; }
+armed($('bDel'), 'Ta bort', () => { cur.actors = cur.actors.filter(x => x.k!==sel); sel = null; syncActors(); saveShot(); renderSide(); });
+$('rMM').oninput = e => { cur.cam.mm = +e.target.value; applyCam(); saveShot(); renderSide(); };
+$('rCH').oninput = e => { readCam(); const dy = +e.target.value - cur.cam.p[1]; cur.cam.p[1] += dy; cur.cam.t[1] += dy; applyCam(); saveShot(); renderSide(); };
+$('bLevel').onclick = () => { readCam(); cur.cam.t[1] = cur.cam.p[1]; applyCam(); saveShot(); renderSide(); };
+$('bPrevCam').onclick = () => { for (let j=idx-1;j>=0;j--){ const s = shotsAll[shotKey(SH()[j].id)]; if (s && s.sc===cur.sc){ cur.cam = clone(s.cam); applyCam(); saveShot(); renderSide(); status('Kameran från skott ' + SH()[j].id + '.'); return; } } status('Inget tidigare skott i samma miljö.'); };
+$('note').oninput = e => { cur.note = e.target.value; saveShot(); $('out').textContent = outMode==='vid' ? videoText() : imageText(); };
+$('bCopy').onclick = () => { const t = $('out').textContent; if (NATIVE){ native('copy', {text:t}).then(() => status('Texten är kopierad.')); return; } navigator.clipboard.writeText(t).then(() => status('Texten är kopierad.'), () => { const r = document.createRange(); r.selectNodeContents($('out')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); status('Markerad – kopiera med Cmd+C.'); }); };
+async function offerFile(blob, fname, okMsg){
+  if (NATIVE){
+    const b64 = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.readAsDataURL(blob); });
+    try { const saved = await native('saveFile', {name:fname, b64}); status(saved ? okMsg : 'Sparandet avbröts.'); } catch(e){ status('Filen kunde inte sparas: ' + e.message, true); }
+    return;
+  }
+  const dl = window.claude?.use ? await window.claude.use('downloads') : null;
+  if (dl){ try { await dl.save({filename:fname, data:blob}); status(okMsg); } catch(e){ status(e?.code==='declined' ? 'Sparandet avbröts.' : 'Filen kunde inte sparas här.', e?.code!=='declined'); } }
+  else { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = fname; a.click(); setTimeout(() => URL.revokeObjectURL(u), 3000); status(okMsg); }
+}
+// Layoutbilden för skottet som visas just nu: 3D-vyn med rollkoderna inritade.
+function layoutBlob(){
+  const keepV = view, keepM = mode; if (keepV!=='cam') setView('cam'); if (keepM!=='shot') setMode('shot');
+  const cam = shotCam; cam.aspect = vpw.clientWidth / Math.max(1, vpw.clientHeight); cam.updateProjectionMatrix(); faceBillboards(cam); R.render(scene, cam);
+  const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; const x = c.getContext('2d'), k = cv.width / vpw.clientWidth;
+  x.drawImage(cv, 0, 0); x.font = `700 ${Math.round(13*k)}px "JetBrains Mono", monospace`; x.textAlign = 'center'; x.textBaseline = 'bottom';
+  for (const l of labelList(cam)){ const w = x.measureText(l.t).width + 12*k, hh = 18*k, X = l.x*k, Y = l.y*k; x.fillStyle = l.col || '#333'; x.beginPath(); if (x.roundRect) x.roundRect(X-w/2, Y-hh, w, hh, hh/2); else x.rect(X-w/2, Y-hh, w, hh); x.fill(); x.fillStyle = '#fff'; x.fillText(l.t, X, Y-3*k); }
+  if (keepV!=='cam') setView(keepV); if (keepM!=='shot') setMode(keepM);
+  return new Promise(ok => c.toBlob(ok, 'image/png'));
+}
+$('bPng').onclick = async () => { if (!cur) return; offerFile(await layoutBlob(), `${slug(P.name)}_skott_${tagOf().id}_layout.png`, 'Layoutbilden är sparad.'); };
+
+// ---------- spara alla skott ----------
+// Mac-programmet skriver filerna i en mapp man väljer; annars blir det en zip-fil.
+const CRC = (() => { const t = new Uint32Array(256); for (let n=0;n<256;n++){ let c = n; for (let k=0;k<8;k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (let i=0;i<b.length;i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipBlob(files){
+  const enc = new TextEncoder(), parts = [], dir = []; let off = 0;
+  const now = new Date(), dt = ((now.getHours()<<11) | (now.getMinutes()<<5) | (now.getSeconds()>>1)), dd = (((now.getFullYear()-1980)<<9) | ((now.getMonth()+1)<<5) | now.getDate());
+  for (const f of files){
+    const name = enc.encode(f.name), data = f.data, crc = crc32(data), h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(10, dt, true); h.setUint16(12, dd, true);
+    h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true);
+    parts.push(h, name, data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(12, dt, true); c.setUint16(14, dd, true);
+    c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+    dir.push(c, name); off += 30 + name.length + data.length;
+  }
+  const size = dir.reduce((n, x) => n + (x.byteLength ?? x.length), 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, size, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...dir, e], {type:'application/zip'});
+}
+const shotLists = () => {
+  const has = t => !!shotsAll[shotKey(t.id)];
+  return {plan:SH().filter(has), done:SH().filter(t => shotsAll[shotKey(t.id)]?.done), all:SH()};
+};
+$('bAll').onclick = () => {
+  if (!P || !SH().length) return;
+  const L = shotLists(); $('aNplan').textContent = `(${L.plan.length})`; $('aNdone').textContent = `(${L.done.length})`; $('aNall').textContent = `(${L.all.length})`;
+  $('aBar').style.width = '0'; $('aInfo').textContent = NATIVE ? 'Du får välja en mapp. Bilderna hamnar i en ny undermapp med projektets namn.' : 'Allt packas i en zip-fil som du sparar.';
+  $('aGo').disabled = false; $('dlgAll').showModal();
+};
+$('aClose').onclick = () => $('dlgAll').close();
+let exporting = false;
+$('aGo').onclick = async () => {
+  if (exporting) return;
+  const which = document.querySelector('[name=aw]:checked').value, list = shotLists()[which], withTxt = $('aTxt').checked;
+  if (!list.length){ $('aInfo').textContent = 'Det finns inga sådana skott än.'; return; }
+  let dir = null;
+  if (NATIVE){ dir = await native('chooseExportFolder', {name:slug(P.name) + '_layoutbilder'}); if (!dir){ $('aInfo').textContent = 'Ingen mapp vald.'; return; } }
+  exporting = true; $('aGo').disabled = true;
+  const keep = idx, enc = new TextEncoder(), files = [], all = [];
+  const put = async (name, blob) => { if (NATIVE) await native('writeExport', {name, b64:await toB64(blob)}); else files.push({name, data:new Uint8Array(await blob.arrayBuffer())}); };
+  try {
+    for (let n=0; n<list.length; n++){
+      const t = list[n], i = SH().indexOf(t);
+      idx = i; sel = null; psel = null; cur = initShot(i); render();
+      await new Promise(r => setTimeout(r, 20)); // ingen requestAnimationFrame: den står still när fönstret ligger i bakgrunden
+      const base = `skott_${t.id}`;
+      await put(base + '_layout.png', await layoutBlob());
+      if (withTxt){
+        const txt = `SKOTT ${t.id}${t.sv ? ' – ' + t.sv : ''}\nLayoutbild: ${base}_layout.png\n\n=== VIDEO (Seedance) ===\n${videoText()}\n\n=== STARTBILD (bildmodell, layoutbilden som @Image1) ===\n${imageText()}\n`;
+        all.push(txt); await put(base + '.txt', new Blob([enc.encode(txt)], {type:'text/plain'}));
+      }
+      $('aBar').style.width = ((n+1)/list.length*100).toFixed(1) + '%'; $('aInfo').textContent = `Skott ${t.id} klart (${n+1} av ${list.length})…`;
+    }
+    if (withTxt) await put('alla_texter.txt', new Blob([enc.encode(all.join('\n\n----------------------------------------\n\n'))], {type:'text/plain'}));
+    if (NATIVE){ $('aInfo').textContent = `${list.length} layoutbilder sparade i ${dir}.`; native('openExportFolder'); }
+    else { await offerFile(zipBlob(files), `${slug(P.name)}_layoutbilder.zip`, `${list.length} layoutbilder är sparade i zip-filen.`); $('aInfo').textContent = `${list.length} layoutbilder packade i ${slug(P.name)}_layoutbilder.zip.`; }
+  } catch(e){ $('aInfo').textContent = 'Något gick fel: ' + (e.message || e); }
+  finally { exporting = false; $('aGo').disabled = false; go(keep); }
+};
+$('bPush').onclick = () => {
+  let n = 0;
+  for (let j=idx+1;j<SH().length;j++){
+    const t = SH()[j]; if (t.sc !== cur.sc) continue; const key = shotKey(t.id), s = shotsAll[key]; if (s && s.done) break;
+    const want = expand(t.pre), base = s || {sc:t.sc, cam:clone(cur.cam), note:'', done:false};
+    base.actors = clone(cur.actors).map(a => ({...a, hid: !want.includes(a.c)}));
+    shotsAll[key] = base; saveShot(t.id); n++;
+  }
+  renderList(); status(n ? `Placeringen kopierad till ${n} kommande skott i samma miljö (fram till nästa klara skott).` : 'Inga kommande skott att kopiera till.');
+};
+armed($('bReset'), 'Börja om skottet', () => { delete shotsAll[shotKey(tagOf().id)]; cur = initShot(idx); saveShot(); render(); });
+$('bPrev').onclick = () => go(idx-1);
+$('bDone').onclick = () => { cur.done = true; saveShot(); if (idx < SH().length-1) go(idx+1); else { renderSide(); renderList(); } };
+const selP = () => (setOf(cur.sc).pieces||[]).find(x => x.id===psel);
+$('pEn').oninput = e => { const p = selP(); if (!p) return; p.en = e.target.value; saveProject(); };
+$('pRot').oninput = e => { const p = selP(); if (!p) return; p.r = +e.target.value; syncPieces(); saveProject(); renderSetSide(); };
+$('pS').oninput = e => { const p = selP(); if (!p) return; p.s = +e.target.value; syncPieces(); saveProject(); renderSetSide(); };
+$('pC').oninput = e => { const p = selP(); if (!p) return; p.c = e.target.value; syncPieces(); saveProject(); };
+$('pDup').onclick = () => { const p = selP(); if (!p) return; const q = {...p, id:p.t+'-'+uid(), x:p.x+2, z:p.z+2}; P.sets[cur.sc].pieces.push(q); psel = q.id; syncPieces(); saveProject(); renderSetSide(); };
+armed($('pDel'), 'Ta bort', () => { const s = P.sets[cur.sc]; s.pieces = s.pieces.filter(x => x.id!==psel); psel = null; syncPieces(); saveProject(); renderSetSide(); });
+$('bAddShot').onclick = () => {
+  if (!P) return askNewProject();
+  const n = SH().length, last = n ? SH()[idx] : null;
+  let id = String(n+1).padStart(3,'0'); while (SH().some(s => s.id===id)) id += 'b';
+  const sc = last?.sc || Object.keys(P.sets)[0]; if (!sc){ openDlg(); return; }
+  SH().splice(n ? idx+1 : 0, 0, {id, sv:'', sc, light:last?.light||'', pre:[]}); saveProject(); go(n ? idx+1 : 0);
+};
+document.addEventListener('keydown', e => {
+  if (['TEXTAREA','INPUT','SELECT'].includes(e.target.tagName) || $('dlg').open) return;
+  const a = selA();
+  const t = selTarget();
+  if ((e.key==='r' || e.key==='R') && t){ setRot(t, (t.a.r||0) + (e.shiftKey?-15:15)); saveRot(t); }
+  else if (t && e.key.startsWith('Arrow')){
+    // flytta 0,1 m (Shift: 1 m) i kamerans riktning
+    e.preventDefault(); const st = e.shiftKey ? 1 : 0.1, f = new T.Vector3(); activeCam().getWorldDirection(f); f.y = 0; f.normalize(); const r = new T.Vector3(-f.z, 0, f.x);
+    const v = e.key==='ArrowUp' ? f : e.key==='ArrowDown' ? f.negate() : e.key==='ArrowRight' ? r : r.negate();
+    t.a.x = +(t.a.x + v.x*st).toFixed(3); t.a.z = +(t.a.z + v.z*st).toFixed(3); t.g.position.x = t.a.x; t.g.position.z = t.a.z; saveRot(t);
+  }
+  else if (e.key==='h' && a && mode==='shot') $('bHide').click();
+  else if (e.key==='Escape'){ sel = null; psel = null; if (cur) renderSide(); }
+});
+
+// ---------- projektdialog ----------
+function newProject(name){
+  name = name || 'Namnlöst projekt'; let id = slug(name), i = 2; while (projects[id]) id = slug(name) + '-' + i++;
+  projects[id] = {name, cast:{}, sets:{huvud:{sv:'Huvudmiljö', base:'mark', pieces:[]}}, shots:[{id:'001', sv:'', sc:'huvud', light:'', pre:[]}], style:''};
+  openProject(id); saveProject(); openDlg();
+}
+$('imgPick').onchange = async e => {
+  const f = e.target.files[0], fn = pickFor; pickFor = null; if (!f || !fn) return;
+  try { status('Sparar bilden…'); const v = await putImage(f, f.name); fn(v, f.name); status('Bilden är tillagd.'); }
+  catch(err){ status('Bilden kunde inte sparas: ' + (err.message || err), true); }
+};
+$('figPick').onchange = async e => {
+  const f = e.target.files[0], it = figFor; figFor = null; if (!f || !it) return;
+  if (it.kind === 'model' && !/\.glb$/i.test(f.name)){ status('Välj en .glb-fil (Higgsfield: ladda ner 3D-modellen som GLB).', true); return; }
+  try { status(it.kind === 'model' ? 'Läser in 3D-modellen…' : 'Läser in bilden…'); const v = await putFig(f, f.name, it.kind); it.fn(v); status(v.startsWith('sess:') ? 'Modellen visas nu, men webbversionen kan inte spara 3D-filer – den försvinner när sidan laddas om. Använd Mac-programmet för att behålla den.' : it.kind === 'model' ? 'Modellen är tillagd – den står nu där rollen är placerad.' : 'Urklippet är tillagt.', v.startsWith('sess:')); }
+  catch(err){ status('Filen kunde inte sparas: ' + (err.message || err), true); }
+};
+$('iClose').onclick = () => $('dlgImg').close();
+$('dlgImg').addEventListener('click', e => { if (e.target === $('dlgImg') || e.target === $('iImg')) $('dlgImg').close(); });
+const sheetCell = (d, what) => `<div class="sheet">${d.img ? `<span class="th" data-view style="background-image:url('${esc(imgSrc(d.img))}')" title="Visa större"></span>` : '<span class="th none">ingen</span>'}
+  <input type="text" data-f="ref" value="${esc(d.ref||'')}" placeholder="filnamn i Higgsfield" aria-label="Filnamn för ${what}">
+  <button class="btn sm" data-pick>${d.img ? 'Byt…' : 'Bild…'}</button>${d.img ? '<button class="btn sm" data-noimg aria-label="Ta bort bilden">✕</button>' : ''}</div>`;
+function fig3dCell(d){
+  const st = r => { const e = r && figCache[r]; return !e ? '' : e.st === 'err' ? ' (fel)' : e.st === 'load' ? ' (läser…)' : ''; };
+  if (d.model) return `<div class="fig3d"><span class="tag on" title="3D-modell">3D-modell${st(d.model)}</span><button class="btn sm" data-mrot title="Vrid modellen 90° om den tittar åt fel håll">↻ ${d.mr||0}°</button><button class="btn sm" data-figdel aria-label="Ta bort figuren">✕</button></div>`;
+  if (d.cut) return `<div class="fig3d"><span class="tag on" title="Urklippt bild">Urklippt bild${st(d.cut)}</span><button class="btn sm" data-figdel aria-label="Ta bort figuren">✕</button></div>`;
+  return `<div class="fig3d"><span class="tag">enkel figur</span><button class="btn sm" data-fig="model" title="3D-modell från Higgsfield (.glb)">Modell…</button><button class="btn sm" data-fig="cut" title="Urklippt bild (.png utan bakgrund)">Urklipp…</button></div>`;
+}
+function figClick(e, d){
+  const b = e.target.closest('[data-fig],[data-figdel],[data-mrot]'); if (!b) return false;
+  if (b.matches('[data-figdel]')){ delete d.model; delete d.cut; delete d.mr; fillDlg(); afterEdit(); syncActors(); return true; }
+  if (b.matches('[data-mrot]')){ d.mr = ((d.mr||0) + 90) % 360; fillDlg(); afterEdit(); syncActors(); return true; }
+  const kind = b.dataset.fig;
+  pickFig(kind, (v) => { delete d.model; delete d.cut; d[kind] = v; fillDlg(); afterEdit(); syncActors(); });
+  return true;
+}
+function sheetClick(e, d, title){
+  if (e.target.matches('[data-view]')){ showImage(imgSrc(d.img), title); return true; }
+  if (e.target.matches('[data-pick]')){ pickImage((v, fname) => { d.img = v; if (!d.ref) d.ref = fname; fillDlg(); afterEdit(); }); return true; }
+  if (e.target.matches('[data-noimg]')){ delete d.img; fillDlg(); afterEdit(); return true; }
+  return false;
+}
+function openDlg(){ if (!P) return askNewProject(); fillDlg(); if (!$('dlg').open) $('dlg').showModal(); }
+function fillDlg(){
+  renderProjList();
+  $('dName').value = P.name || '';
+  $('dStyle').value = P.style || '';
+  const kOpts = Object.entries(KINDS).map(([k,v]) => `<option value="${k}">${v.sv}</option>`).join('');
+  $('dCast').innerHTML = Object.entries(P.cast).map(([c,d]) => `<tr data-c="${esc(c)}">
+    <td><input type="text" class="w-code" data-f="code" value="${esc(c)}" aria-label="Kod"></td>
+    <td><input type="text" data-f="sv" value="${esc(d.sv)}" aria-label="Namn"></td>
+    <td><input type="text" data-f="en" value="${esc(d.en)}" aria-label="Engelska till prompten"></td>
+    <td><select class="in" data-f="k" aria-label="Typ">${kOpts}</select></td>
+    <td><input type="number" class="w-h" step="0.05" min="0.02" data-f="h" value="${esc(d.h)}" aria-label="Höjd"></td>
+    <td><input type="color" data-f="c" value="${esc(d.c || '#888888')}" aria-label="Färg"></td>
+    <td>${sheetCell(d, d.sv)}</td>
+    <td>${fig3dCell(d)}</td>
+    <td><button class="btn sm" data-del aria-label="Ta bort rollen">✕</button></td></tr>`).join('');
+  $('dCast').querySelectorAll('tr').forEach(tr => { tr.querySelector('[data-f=k]').value = P.cast[tr.dataset.c].k; });
+  const bOpts = Object.entries(BASES).map(([k,v]) => `<option value="${k}">${v.sv}</option>`).join('');
+  $('dSets').innerHTML = Object.entries(P.sets).map(([k,s]) => `<tr data-k="${esc(k)}"><td><code>${esc(k)}</code></td><td><input type="text" data-f="sv" value="${esc(s.sv)}" aria-label="Namn"></td><td><select class="in" data-f="base" aria-label="Grund">${bOpts}</select></td><td>${sheetCell(s, s.sv)}</td><td><button class="btn sm" data-del aria-label="Ta bort miljön">✕</button></td></tr>`).join('');
+  $('dSets').querySelectorAll('tr').forEach(tr => { tr.querySelector('[data-f=base]').value = P.sets[tr.dataset.k].base; });
+  $('dShots').value = SH().map(s => [s.id, s.sv||'', s.sc, (s.pre||[]).join(', '), s.light||''].join(' | ')).join('\n');
+  $('dShotsInfo').textContent = `${SH().length} skott`;
+}
+function afterEdit(rebuild){ saveProject(); renderSetSelects(); if (rebuild) builtBase = null; render(); }
+$('bProj').onclick = openDlg; $('bFirst').onclick = openDlg;
+$('dClose').onclick = () => $('dlg').close();
+$('dlg').addEventListener('close', () => { renderProjSel(); render(); });
+$('dName').onchange = e => { const n = e.target.value.trim(); if (!n){ e.target.value = P.name; return; } renameProject(n); };
+$('dStyle').onchange = e => { P.style = e.target.value.trim(); saveProject(); if (cur) renderSide(); };
+// Eget namnfönster i stället för prompt(), så att det fungerar likadant i Mac-programmet och i webbläsaren.
+function askNewProject(){
+  if ($('dlg').open) $('dlg').close();
+  $('nName').value = ''; $('nInfo').textContent = 'Namnet blir också filnamnet. Det går att byta senare under Projekt….'; $('nInfo').className = 'hint';
+  $('dlgNew').showModal(); $('nName').focus();
+}
+$('nCancel').onclick = () => $('dlgNew').close();
+$('nForm').addEventListener('submit', e => {
+  const name = $('nName').value.trim();
+  if (!name){ e.preventDefault(); $('nInfo').textContent = 'Skriv ett namn på projektet först.'; $('nInfo').className = 'hint err'; $('nName').focus(); return; }
+  if (Object.values(projects).some(p => (p.name||'').toLowerCase() === name.toLowerCase())){ e.preventDefault(); $('nInfo').textContent = `Det finns redan ett projekt som heter ${name}. Välj ett annat namn.`; $('nInfo').className = 'hint err'; return; }
+  setTimeout(() => { newProject(name); status(`Projektet ${name} är skapat. Lägg till roller, miljöer och skott här.`); });
+});
+// Byter namn och projekt-id, så att filen (eller den delade lagringen) följer med det nya namnet.
+async function renameProject(name){
+  if (!P || !name || name === P.name) return;
+  const old = pid; P.name = name;
+  let id = slug(name), i = 2; while (projects[id] && id !== old) id = slug(name) + '-' + i++;
+  if (id === old){ saveProject(); renderProjSel(); return; }
+  projects[id] = P; delete projects[old];
+  const moved = Object.keys(shotsAll).filter(k => k.startsWith(old+'__'));
+  moved.forEach(k => { shotsAll[id + k.slice(old.length)] = shotsAll[k]; delete shotsAll[k]; });
+  try { localStorage.setItem(LS+'-idx-'+id, String(idx)); } catch {}
+  pid = id; lsSave();
+  if (NATIVE){ clearTimeout(writeT[old]); try { await native('remove', {name:old}); } catch {} writeProject(id); }
+  saveProject(); moved.forEach(k => saveShot(k.slice(old.length+2)));
+  if (db){ try { await db.doc('projekt/'+old).delete(); for (const k of moved) await db.doc('skott/'+k).delete(); } catch {} }
+  renderProjSel(); renderProjList(); status(`Projektet heter nu ${name}.`);
+}
+$('dNew').onclick = askNewProject; $('bNewProj').onclick = askNewProject;
+$('dCast').addEventListener('change', e => {
+  const tr = e.target.closest('tr'), c = tr.dataset.c, f = e.target.dataset.f, d = P.cast[c]; if (!f || !d) return;
+  if (f === 'code'){ const nc = e.target.value.trim().toUpperCase(); if (!nc || P.cast[nc]){ e.target.value = c; return; }
+    P.cast[nc] = d; delete P.cast[c]; SH().forEach(s => s.pre = (s.pre||[]).map(x => x===c ? nc : x));
+    Object.keys(shotsAll).filter(k => k.startsWith(pid+'__')).forEach(k => { let ch = false; shotsAll[k].actors.forEach(a => { if (a.c===c){ a.c = nc; ch = true; } }); if (ch) saveShot(k.slice(pid.length+2)); });
+    tr.dataset.c = nc; e.target.value = nc; }
+  else if (f === 'h') d.h = Math.max(0.02, +e.target.value || KINDS[d.k].h);
+  else if (f === 'k'){ d.k = e.target.value; d.h = KINDS[d.k].h; tr.querySelector('[data-f=h]').value = d.h; }
+  else d[f] = e.target.value.trim();
+  afterEdit();
+});
+$('dCast').addEventListener('click', e => { const c = e.target.closest('tr')?.dataset.c; if (c && (figClick(e, P.cast[c]) || sheetClick(e, P.cast[c], P.cast[c].sv))) return; if (!e.target.matches('[data-del]')) return; delete P.cast[e.target.closest('tr').dataset.c]; fillDlg(); afterEdit(); });
+$('dAddCast').onclick = () => { let i = 1, c; do { c = 'R' + i++; } while (P.cast[c]); P.cast[c] = {sv:'Ny roll', en:'a character', k:'h', h:1.8, c:'#D2683E', ref:''}; fillDlg(); afterEdit(); };
+$('dSets').addEventListener('change', e => { const tr = e.target.closest('tr'), s = P.sets[tr.dataset.k], f = e.target.dataset.f; if (!f || !s) return; s[f] = f==='ref' ? e.target.value.trim() : e.target.value.trim() || s[f]; afterEdit(f==='base'); });
+$('dSets').addEventListener('click', e => { const k0 = e.target.closest('tr')?.dataset.k; if (k0 && sheetClick(e, P.sets[k0], P.sets[k0].sv)) return; if (!e.target.matches('[data-del]')) return; const k = e.target.closest('tr').dataset.k; if (SH().some(s => s.sc===k)){ $('dShotsInfo').textContent = 'Miljön används av skott och kan inte tas bort – byt miljö på de skotten först.'; return; } delete P.sets[k]; fillDlg(); afterEdit(); });
+$('dAddSet').onclick = () => { let i = 1, k; do { k = 'miljo' + i++; } while (P.sets[k]); P.sets[k] = {sv:'Ny miljö', base:'mark', pieces:[]}; fillDlg(); afterEdit(); };
+$('dApplyShots').onclick = () => {
+  const rows = $('dShots').value.split('\n').map(l => l.trim()).filter(Boolean), out = [], bad = [];
+  rows.forEach((l,i) => { const [id, sv, sc, pre, light] = l.split('|').map(x => (x||'').trim()); if (!id){ bad.push(i+1); return; }
+    let key = sc; if (!key) key = Object.keys(P.sets)[0]; else if (!P.sets[key]) P.sets[key] = {sv:key, base:'mark', pieces:[]};
+    out.push({id, sv:sv||'', sc:key, pre:(pre||'').split(/[,\s]+/).map(x => x.trim().toUpperCase()).filter(Boolean), light:light||''}); });
+  if (!out.length){ $('dShotsInfo').textContent = 'Inga skott hittades.'; return; }
+  P.shots = out; idx = Math.min(idx, out.length-1); cur = initShot(idx); saveProject(); renderSetSelects(); fillDlg(); render();
+  $('dShotsInfo').textContent = `${out.length} skott sparade.` + (bad.length ? ` Rader utan id hoppades över: ${bad.join(', ')}.` : '');
+};
+$('dExport').onclick = async () => {
+  const shots = {}; Object.keys(shotsAll).filter(k => k.startsWith(pid+'__')).forEach(k => shots[k.slice(pid.length+2)] = shotsAll[k]);
+  status('Packar ihop projektet med bilderna…'); const project = await embedImages(P);
+  offerFile(new Blob([JSON.stringify({format:'scenplanering/1', id:pid, project, shots}, null, 1)], {type:'application/json'}), slug(P.name) + '_scenplanering.json', 'Projektfilen är sparad.');
+};
+$('dImport').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { const j = JSON.parse(await f.text()); if (j?.project) await storeEmbedded(j.project); importProject(j); $('dlg').close(); status('Projektet är importerat.'); }
+  catch { $('dShotsInfo').textContent = 'Filen kunde inte läsas som projektfil.'; }
+};
+function importProject(j){
+  if (!j?.project?.shots) throw new Error('fel format');
+  let id = j.id || slug(j.project.name); if (projects[id] && projects[id].name !== j.project.name) id += '-' + uid();
+  projects[id] = j.project; pid = id; P = projects[id];
+  Object.entries(j.shots || {}).forEach(([sid, s]) => { shotsAll[id+'__'+sid] = s; saveShot(sid); });
+  saveProject(); openProject(id);
+}
+async function deleteProject(id){
+  const keys = Object.keys(shotsAll).filter(k => k.startsWith(id+'__'));
+  delete projects[id]; keys.forEach(k => delete shotsAll[k]); lsSave();
+  if (NATIVE){ clearTimeout(writeT[id]); try { await native('remove', {name:id}); } catch {} }
+  if (db){ try { await db.doc('projekt/'+id).delete(); for (const k of keys) await db.doc('skott/'+k).delete(); } catch {} }
+  if (id === pid) openProject(Object.keys(projects)[0] || null); else renderProjSel();
+}
+// Tar bort alla placeringar och kameror i projektets skott; roller, miljöer och skottlista blir kvar.
+async function clearProject(id){
+  const keys = Object.keys(shotsAll).filter(k => k.startsWith(id+'__'));
+  keys.forEach(k => delete shotsAll[k]); lsSave();
+  if (NATIVE) writeProject(id);
+  if (db){ try { for (const k of keys) await db.doc('skott/'+k).delete(); } catch {} }
+  if (id === pid) openProject(id);
+  return keys.length;
+}
+armed($('dDelProj'), 'Radera projektet', async () => { const n = P?.name; await deleteProject(pid); $('dlg').close(); status(`Projektet ${n} är raderat.`); });
+function renderProjList(){
+  const ids = Object.keys(projects).sort((a,b) => (projects[a].name||a).localeCompare(projects[b].name||b, 'sv'));
+  const placed = id => Object.keys(shotsAll).filter(k => k.startsWith(id+'__') && shotsAll[k]?.actors?.length).length;
+  $('dProjList').innerHTML = ids.map(id => `<tr data-id="${esc(id)}"><td>${esc(projects[id].name||id)}${id===pid ? ' <span class="hint">(öppet)</span>' : ''}</td><td>${(projects[id].shots||[]).length}</td><td>${placed(id)}</td>
+    <td style="white-space:nowrap">${id===pid ? '' : '<button class="btn sm" data-open>Öppna</button> '}<button class="btn sm" data-clear>Rensa</button> <button class="btn sm" data-del>Radera</button></td></tr>`).join('');
+  $('dProjList').querySelectorAll('tr').forEach(tr => {
+    const id = tr.dataset.id, nm = projects[id].name || id;
+    tr.querySelector('[data-open]')?.addEventListener('click', () => { openProject(id); fillDlg(); });
+    armed(tr.querySelector('[data-clear]'), 'Rensa', async () => { const n = await clearProject(id); renderProjList(); status(`${nm}: ${n} skott rensade.`); });
+    armed(tr.querySelector('[data-del]'), 'Radera', async () => { await deleteProject(id); if (P) fillDlg(); else $('dlg').close(); status(`Projektet ${nm} är raderat.`); });
+  });
+}
+
+// ---------- loop ----------
+function loop(){
+  requestAnimationFrame(loop); if (!cur) { $('labels').innerHTML = ''; return; }
+  const cam = activeCam(); cam.aspect = vpw.clientWidth / Math.max(1, vpw.clientHeight); cam.updateProjectionMatrix();
+  if (view==='plan'){ shotCam.updateMatrixWorld(); helper.update(); camBody.position.copy(shotCam.position); camBody.quaternion.copy(shotCam.quaternion); }
+  faceBillboards(cam); updGizmo(); R.render(scene, cam); drawLabels(cam);
+}
+
+async function showFolder(){ if (!NATIVE) return; $('dFolderRow').hidden = false; $('dFolder').textContent = await native('folder'); }
+$('dShowFolder').onclick = () => native('openFolder');
+$('dPickFolder').onclick = async () => { const p = await native('chooseFolder'); if (!p) return; $('dlg').close(); await loadNative(); status('Projektmappen är nu ' + p + '.'); };
+async function loadNative(){
+  const all = await native('list') || {}; projects = {}; shotsAll = {};
+  Object.entries(all).forEach(([file, j]) => { if (!j?.project) return; const id = j.id || file; projects[id] = j.project; Object.entries(j.shots||{}).forEach(([s,v]) => shotsAll[id+'__'+s] = v); });
+  let last = null; try { last = localStorage.getItem(LS+'-pid'); } catch {}
+  openProject(projects[last] ? last : Object.keys(projects)[0] || null); showFolder();
+  if (!Object.keys(projects).length) status('Inga projekt i mappen än. Skapa ett eller importera en projektfil.');
+}
+(async () => {
+  if (NATIVE){ resize(); setView('cam'); setMode('shot'); loop(); await loadNative(); return; }
+  const ls = lsLoad(); projects = ls.projects || {}; shotsAll = ls.shots || {};
+  if (window.SEED && !projects[window.SEED.id]){ projects[window.SEED.id] = window.SEED.project; Object.entries(window.SEED.shots||{}).forEach(([s,v]) => shotsAll[window.SEED.id+'__'+s] = v); }
+  resize(); setView('cam'); setMode('shot'); openProject(projects[ls.pid] ? ls.pid : Object.keys(projects)[0] || null); loop();
+  [db, assets] = window.claude?.use ? await Promise.all([window.claude.use('db'), window.claude.use('assets')]) : [null, null];
+  if (!db){ status('Delad lagring saknas här. Allt sparas i den här webbläsaren – använd Projekt… → Exportera för att flytta det.'); return; }
+  let first = true;
+  db.collection('projekt').onSnapshot(snap => {
+    let ch = false;
+    snap.docs.forEach(d => { if (pend.has('p:'+d.id)) return; const {at, ...v} = d.data(); projects[d.id] = v; ch = true; });
+    lsSave();
+    if (first){ first = false; if (!P || !projects[pid]) { openProject(Object.keys(projects)[0] || null); return; } }
+    if (ch && !drag && !$('dlg').open){ const keepIdx = idx; P = projects[pid] || null; if (!P){ openProject(Object.keys(projects)[0] || null); return; }
+      renderProjSel(); renderSetSelects(); builtBase = null; if (SH().length){ idx = Math.min(keepIdx, SH().length-1); cur = initShot(idx); } else cur = null; render(); }
+    else renderProjSel();
+  }, e => status('Synken stoppade ('+(e.code||'fel')+'). Ladda om sidan.', true));
+  db.collection('skott').onSnapshot(snap => {
+    let ch = false;
+    snap.docs.forEach(d => { if (pend.has('s:'+d.id)) return; const {at, ...v} = d.data(); shotsAll[d.id] = v; ch = true; });
+    if (!ch) return; lsSave();
+    if (P && SH().length && !drag){ const k = shotKey(tagOf().id); if (shotsAll[k] && shotsAll[k] !== cur){ cur = shotsAll[k]; render(); } else renderList(); }
+  }, e => status('Synken stoppade ('+(e.code||'fel')+'). Ladda om sidan.', true));
+})();
+</script>
