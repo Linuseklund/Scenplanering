@@ -2,18 +2,18 @@ import Cocoa
 import WebKit
 
 // Scenplanering – ett litet Mac-program runt webbsidan i Resources/web.
-// Varje projekt sparas som <projekt-id>.scen.json i projektmappen, sheets i projektmappens bilder/.
+// Varje projekt sparas som <projekt-id>.film.json i den delade projektmappen (samma fil som Rollmarkering), sheets i projektmappens bilder/.
 // Sidan når bilderna via adressen bild://lokal/<sökväg i projektmappen>.
 
 final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKUIDelegate, WKURLSchemeHandler {
     var window: NSWindow!
     var web: WKWebView!
-    let defaultsKey = "projektmapp"
+    let defaultsKey = "delad-projektmapp"
     var exportDir: URL?
 
     var dataDir: URL {
         if let p = UserDefaults.standard.string(forKey: defaultsKey) { return URL(fileURLWithPath: p, isDirectory: true) }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop/SCENPLANERING/Projekt", isDirectory: true)
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop/FILMPROJEKT", isDirectory: true)
     }
 
     func applicationDidFinishLaunching(_ n: Notification) {
@@ -89,19 +89,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             case "list":
                 var all: [String: Any] = [:]
                 let files = (try? fm.contentsOfDirectory(at: dataDir, includingPropertiesForKeys: nil)) ?? []
-                for f in files where f.lastPathComponent.hasSuffix(".scen.json") {
+                for f in files where f.lastPathComponent.hasSuffix(".film.json") {
                     if let d = try? Data(contentsOf: f), let j = try? JSONSerialization.jsonObject(with: d) {
-                        all[String(f.lastPathComponent.dropLast(".scen.json".count))] = j
+                        all[String(f.lastPathComponent.dropLast(".film.json".count))] = j
                     }
                 }
                 reply(all, nil)
+            case "stamps":
+                // När varje projektfil senast ändrades, så att sidan kan se om det andra programmet har sparat.
+                var out: [String: Double] = [:]
+                let files = (try? fm.contentsOfDirectory(at: dataDir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+                for f in files where f.lastPathComponent.hasSuffix(".film.json") {
+                    let t = (try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)??.timeIntervalSince1970 ?? 0
+                    out[String(f.lastPathComponent.dropLast(".film.json".count))] = t
+                }
+                reply(out, nil)
             case "write":
                 try fm.createDirectory(at: dataDir, withIntermediateDirectories: true)
-                let url = dataDir.appendingPathComponent(safeName(m["name"] as? String ?? "") + ".scen.json")
+                let url = dataDir.appendingPathComponent(safeName(m["name"] as? String ?? "") + ".film.json")
                 try Data((m["text"] as? String ?? "").utf8).write(to: url, options: .atomic)
                 reply(true, nil)
             case "remove":
-                let url = dataDir.appendingPathComponent(safeName(m["name"] as? String ?? "") + ".scen.json")
+                let url = dataDir.appendingPathComponent(safeName(m["name"] as? String ?? "") + ".film.json")
                 if fm.fileExists(atPath: url.path) { try fm.trashItem(at: url, resultingItemURL: nil) }
                 reply(true, nil)
             case "writeImage":

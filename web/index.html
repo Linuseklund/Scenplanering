@@ -666,16 +666,18 @@ const setOf = k => P.sets[k] || {sv:k, base:'tom', pieces:[]};
 const baseOf = k => BASES[setOf(k).base] || BASES.tom;
 const castOf = c => P.cast[c] || {sv:c, en:c, k:'crate', h:0.6};
 
-const writeT = {};
-function writeProject(id){
-  clearTimeout(writeT[id]);
-  writeT[id] = setTimeout(async () => {
-    if (!projects[id]) return;
-    const shots = {}; Object.keys(shotsAll).filter(k => k.startsWith(id+'__')).forEach(k => shots[k.slice(id.length+2)] = shotsAll[k]);
-    try { await native('write', {name:id, text:JSON.stringify({format:'scenplanering/1', id, project:projects[id], shots}, null, 1)}); status('Sparat ' + new Date().toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})); }
-    catch(e){ status('Kunde inte spara: ' + e.message, true); }
-  }, 500);
+// Projektfilen (film/1) delas med Rollmarkering: rollernas markeringar (marks) följer med orörda när Scenplanering sparar.
+const writeT = {}, marksOf = {};
+const projShots = id => { const o = {}; Object.keys(shotsAll).filter(k => k.startsWith(id+'__')).forEach(k => o[k.slice(id.length+2)] = shotsAll[k]); return o; };
+const filmDoc = (id, project) => ({format:'film/1', id, project, shots:projShots(id), marks:marksOf[id] || {}});
+let stamps = {};
+async function writeNow(id){
+  clearTimeout(writeT[id]); delete writeT[id];
+  if (!projects[id]) return;
+  try { await native('write', {name:id, text:JSON.stringify(filmDoc(id, projects[id]), null, 1)}); stamps = await native('stamps'); status('Sparat ' + new Date().toLocaleTimeString('sv-SE',{hour:'2-digit',minute:'2-digit'})); }
+  catch(e){ status('Kunde inte spara: ' + e.message, true); }
 }
+function writeProject(id){ clearTimeout(writeT[id]); writeT[id] = setTimeout(() => writeNow(id), 500); }
 function persist(path, data, key){
   if (NATIVE){ const m = key.match(/^[ps]:(.+?)(?:__|$)/); if (m) writeProject(m[1]); return; }
   pend.add(key); lsSave(); clearTimeout(timers[key]);
@@ -979,7 +981,10 @@ function render(){
 function go(i){ if (!P || i<0 || i>=SH().length) return; stopPlay(); camEdit = 'start'; kSel = 0; kTime = 0; idx = i; sel = null; psel = null; cur = initShot(i); try{ localStorage.setItem(LS+'-idx-'+pid, String(i)); }catch{} render(); }
 function openProject(id){
   pid = id; P = id ? projects[id] || null : null; builtBase = null;
-  if (P){ P.cast ||= {}; P.sets ||= {}; P.shots ||= []; renderSetSelects(); let i = 0; try { i = +localStorage.getItem(LS+'-idx-'+pid) || 0; } catch {} idx = Math.min(Math.max(0,i), Math.max(0, SH().length-1)); cur = SH().length ? initShot(idx) : null; }
+  if (P){ P.cast ||= {}; P.sets ||= {}; P.shots ||= [];
+    // Skott som lagts till i Rollmarkering saknar miljö: de får samma miljö som skottet före (eller projektets första).
+    if (P.shots.some(s => !P.sets[s.sc])){ if (!Object.keys(P.sets).length) P.sets.huvud = {sv:'Huvudmiljö', base:'mark', pieces:[]}; P.shots.forEach((s,i) => { if (!P.sets[s.sc]) s.sc = i ? P.shots[i-1].sc : Object.keys(P.sets)[0]; }); }
+    renderSetSelects(); let i = 0; try { i = +localStorage.getItem(LS+'-idx-'+pid) || 0; } catch {} idx = Math.min(Math.max(0,i), Math.max(0, SH().length-1)); cur = SH().length ? initShot(idx) : null; }
   else cur = null;
   lsSave(); try { localStorage.setItem(LS+'-pid', pid || ''); } catch {} renderProjSel(); render();
 }
@@ -1589,15 +1594,14 @@ $('dApplyShots').onclick = () => {
   const rows = $('dShots').value.split('\n').map(l => l.trim()).filter(Boolean), out = [], bad = [];
   rows.forEach((l,i) => { const [id, sv, sc, pre, light] = l.split('|').map(x => (x||'').trim()); if (!id){ bad.push(i+1); return; }
     let key = sc; if (!key) key = Object.keys(P.sets)[0]; else if (!P.sets[key]) P.sets[key] = {sv:key, base:'mark', pieces:[]};
-    out.push({id, sv:sv||'', sc:key, pre:(pre||'').split(/[,\s]+/).map(x => x.trim().toUpperCase()).filter(Boolean), light:light||''}); });
+    out.push({...SH().find(s => s.id===id), id, sv:sv||'', sc:key, pre:(pre||'').split(/[,\s]+/).map(x => x.trim().toUpperCase()).filter(Boolean), light:light||''}); });
   if (!out.length){ $('dShotsInfo').textContent = 'Inga skott hittades.'; return; }
   P.shots = out; idx = Math.min(idx, out.length-1); cur = initShot(idx); saveProject(); renderSetSelects(); fillDlg(); render();
   $('dShotsInfo').textContent = `${out.length} skott sparade.` + (bad.length ? ` Rader utan id hoppades över: ${bad.join(', ')}.` : '');
 };
 $('dExport').onclick = async () => {
-  const shots = {}; Object.keys(shotsAll).filter(k => k.startsWith(pid+'__')).forEach(k => shots[k.slice(pid.length+2)] = shotsAll[k]);
   status('Packar ihop projektet med bilderna…'); const project = await embedImages(P);
-  offerFile(new Blob([JSON.stringify({format:'scenplanering/1', id:pid, project, shots}, null, 1)], {type:'application/json'}), slug(P.name) + '_scenplanering.json', 'Projektfilen är sparad.');
+  offerFile(new Blob([JSON.stringify(filmDoc(pid, project), null, 1)], {type:'application/json'}), slug(P.name) + '_film.json', 'Projektfilen är sparad.');
 };
 $('dImport').onchange = async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
@@ -1605,9 +1609,11 @@ $('dImport').onchange = async e => {
   catch { $('dShotsInfo').textContent = 'Filen kunde inte läsas som projektfil.'; }
 };
 function importProject(j){
+  // Filer från Rollmarkering (rollmarkering/1) har klipplistan som clips i stället för shots.
+  if (j?.project?.clips && !j.project.shots){ const {clips, ...rest} = j.project; j = {...j, project:{...rest, shots:clips}}; }
   if (!j?.project?.shots) throw new Error('fel format');
   let id = j.id || slug(j.project.name); if (projects[id] && projects[id].name !== j.project.name) id += '-' + uid();
-  projects[id] = j.project; pid = id; P = projects[id];
+  projects[id] = j.project; marksOf[id] = j.marks || {}; pid = id; P = projects[id];
   Object.entries(j.shots || {}).forEach(([sid, s]) => { shotsAll[id+'__'+sid] = s; saveShot(sid); });
   saveProject(); openProject(id);
 }
@@ -1652,12 +1658,31 @@ function loop(){
 async function showFolder(){ if (!NATIVE) return; $('dFolderRow').hidden = false; $('dFolder').textContent = await native('folder'); }
 $('dShowFolder').onclick = () => native('openFolder');
 $('dPickFolder').onclick = async () => { const p = await native('chooseFolder'); if (!p) return; $('dlg').close(); await loadNative(); status('Projektmappen är nu ' + p + '.'); };
+async function readFolder(){
+  stamps = await native('stamps') || {};
+  const all = await native('list') || {}, out = {};
+  Object.entries(all).forEach(([file, j]) => { if (j?.project) out[j.id || file] = j; });
+  return out;
+}
+function takeDocs(docs){
+  projects = {}; shotsAll = {};
+  Object.entries(docs).forEach(([id, j]) => { projects[id] = j.project; marksOf[id] = j.marks || {}; Object.entries(j.shots||{}).forEach(([s,v]) => shotsAll[id+'__'+s] = v); });
+}
 async function loadNative(){
-  const all = await native('list') || {}; projects = {}; shotsAll = {};
-  Object.entries(all).forEach(([file, j]) => { if (!j?.project) return; const id = j.id || file; projects[id] = j.project; Object.entries(j.shots||{}).forEach(([s,v]) => shotsAll[id+'__'+s] = v); });
+  takeDocs(await readFolder());
   let last = null; try { last = localStorage.getItem(LS+'-pid'); } catch {}
   openProject(projects[last] ? last : Object.keys(projects)[0] || null); showFolder();
   if (!Object.keys(projects).length) status('Inga projekt i mappen än. Skapa ett eller importera en projektfil.');
+}
+// Rollmarkering kan ha ändrat filerna medan fönstret låg i bakgrunden: spara det som väntar när fönstret lämnas och läs om mappen när det kommer tillbaka.
+if (NATIVE){
+  window.addEventListener('blur', () => Object.keys(writeT).forEach(writeNow));
+  window.addEventListener('focus', () => setTimeout(async () => {
+    if (Object.keys(writeT).length || drag || $('dlg').open) return;
+    const same = (a, b) => JSON.stringify(Object.entries(a||{}).sort()) === JSON.stringify(Object.entries(b||{}).sort());
+    if (same(await native('stamps'), stamps)) return;
+    const keep = pid; takeDocs(await readFolder()); openProject(projects[keep] ? keep : Object.keys(projects)[0] || null); status('Projekten är inlästa på nytt från mappen.');
+  }, 250));
 }
 (async () => {
   if (NATIVE){ resize(); setView('cam'); setMode('shot'); loop(); await loadNative(); return; }
